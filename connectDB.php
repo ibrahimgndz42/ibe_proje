@@ -2,7 +2,7 @@
 $servername = "localhost";
 $username = "root";
 $password = "";
-$dbname = "mini-sinavim-vt";
+$dbname = "mini-sinavim-ibe-vt";
 
 $conn = new mysqli($servername, $username, $password, $dbname);
 
