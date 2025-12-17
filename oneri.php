@@ -78,8 +78,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             margin-bottom: 30px;
         }
 
-        h1 { color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-top: 0; margin-bottom: 20px; }
-        h2 { color: #333; font-size: 1.5rem; border-bottom: 2px solid rgba(255,255,255,0.5); padding-bottom: 10px; margin-bottom: 20px; }
+        h1 { color: #000; text-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-top: 0; margin-bottom: 20px; }
+        h2 { color: #111; font-size: 1.5rem; border-bottom: 2px solid rgba(255,255,255,0.5); padding-bottom: 10px; margin-bottom: 20px; }
 
         label { display: block; margin-bottom: 8px; font-weight: 600; color: #444; }
 
