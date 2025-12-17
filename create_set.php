@@ -2,15 +2,21 @@
 include "session_check.php";
 include "connectDB.php";
 
-// Kategorileri veritabanından çek (Hata almamak için en garantisi budur)
+// Temaları veritabanından çek
+$sql_themes = "SELECT * FROM themes ORDER BY theme_id ASC";
+$result_themes = $conn->query($sql_themes);
+
+// Kategorileri çek
 $sql_cats = "SELECT * FROM categories ORDER BY category_id ASC";
 $result_cats = $conn->query($sql_cats);
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
-    $set_title = trim($_POST["set_title"]); // Boşlukları temizle
+    $set_title = trim($_POST["set_title"]);
     $set_desc  = trim($_POST["set_desc"]);
-    $set_category = $_POST["set_category"]; // Hidden input'tan gelen ID
+    $set_category = $_POST["set_category"];
+    // Tema ID'sini al (Seçilmezse varsayılan 1 olsun veya kontrol et)
+    $set_theme_id = isset($_POST["set_theme_id"]) ? $_POST["set_theme_id"] : 1; 
     $user_id   = $_SESSION["user_id"];
 
     // HATA KONTROLLERİ
@@ -35,15 +41,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         if ($validCardCount < 2) {
             $error = "En az 2 dolu kart eklemelisiniz!";
         } else {
-            // SQL Sorgusunu Hazırla (SQL Injection koruması ve tırnak hataları için prepare kullanılır)
-            // Eğer prepare kullanamıyorsan eski usul devam edebilirsin ama ID kontrolü şart.
+            // Sets tablosuna kaydet (theme yerine theme_id kaydediyoruz)
+            // Tablo yapında 'theme' sütunu VARCHAR ise adını, INT ise ID'sini kaydetmelisin.
+            // Ben burada ID kaydettiğini varsayıyorum. 
+            // Eğer ismini kaydedeceksen $_POST['theme_name'] gibi bir hidden input daha gerekebilir
+            // veya ID kaydedip ilişkisel tablo kullanmak en doğrusudur.
             
-            // Kategori ID'sinin veritabanında gerçekten var olup olmadığını kontrol etmiyoruz,
-            // çünkü foreign key hatası alıyorsan zaten yok demektir.
-            // Yukarıdaki SQL komutunu çalıştırdıysan burası çalışacaktır.
-
-            $stmt = $conn->prepare("INSERT INTO sets (user_id, title, description, category_id) VALUES (?, ?, ?, ?)");
-            $stmt->bind_param("issi", $user_id, $set_title, $set_desc, $set_category);
+            $stmt = $conn->prepare("INSERT INTO sets (user_id, title, description, category_id, theme_id) VALUES (?, ?, ?, ?, ?)");
+            $stmt->bind_param("issii", $user_id, $set_title, $set_desc, $set_category, $set_theme_id);
             
             if ($stmt->execute()) {
                 $set_id = $conn->insert_id;
@@ -60,7 +65,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 }
                 $success = "Set başarıyla oluşturuldu! Yönlendiriliyorsunuz...";
             } else {
-                // Veritabanı hatasını ekrana yazdır (Geliştirme aşamasında faydalı)
                 $error = "Veritabanı Hatası: " . $conn->error;
             }
         }
@@ -73,11 +77,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <meta charset="UTF-8">
 <title>Set Oluştur</title>
 
+<link rel="stylesheet" href="style.css">
+
 <style>
+    /* style.css içinde body arka planı tanımlı olsa bile, 
+       bu sayfada SABİT kalmasını istediğimiz için override ediyoruz.
+    */
     body {
         margin: 0;
         font-family: 'Inter', sans-serif;
-        background: linear-gradient(135deg, #8EC5FC, #E0C3FC);
+        background: linear-gradient(135deg, #8EC5FC, #E0C3FC) !important; /* Sabit Mavi */
         min-height: 100vh;
     }
     
@@ -112,38 +121,22 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         font-size: 30px;
     }
 
-    textarea.auto-expand {
-        overflow: hidden;
-        min-height: 40px; 
-        resize: none;    
-        background: rgba(255,255,255,0.1);
-        border-radius: 8px;
-        border: 1px solid rgba(255,255,255,0.3);
-        color: #fff;
-        padding: 14px;
-        width: 100%;
-        font-size: 15px;
-        outline: none;
-    }
-
-    .input-wrapper {
-        position: relative;
-        margin-bottom: 25px;
-    }
-
-    .input-wrapper input,
-    .input-wrapper textarea,
-    .input-wrapper select {
+    /* Input stilleri */
+    textarea.auto-expand, .input-wrapper input, .input-wrapper select {
         width: 100%;
         padding: 14px 14px;
         border: 1px solid rgba(255,255,255,0.3);
-        background: rgba(255,255,255,0.10);
+        background: rgba(255,255,255,0.15); /* Biraz daha şeffaf yaptım ki tema rengi belli olsun */
         border-radius: 8px;
         font-size: 15px;
         color: #fff;
         outline: none;
         resize: none;
-        overflow: hidden;
+    }
+
+    .input-wrapper {
+        position: relative;
+        margin-bottom: 25px;
     }
 
     .input-wrapper label {
@@ -159,147 +152,112 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     .input-wrapper input:focus + label,
     .input-wrapper input:not(:placeholder-shown) + label,
     .input-wrapper textarea:focus + label,
-    .input-wrapper textarea:not(:placeholder-shown) + label,
-    .input-wrapper select:focus + label,
-    .input-wrapper select:not([value=""]) + label {
+    .input-wrapper textarea:not(:placeholder-shown) + label {
         top: -6px;
         font-size: 12px;
         color: #fff;
-        background: transparent; /* Label arkası */
     }
 
     .focus-border {
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        height: 2px;
-        width: 0;
-        background: #fff;
-        transition: .3s;
+        position: absolute; bottom: 0; left: 0; height: 2px; width: 0; background: #fff; transition: .3s;
     }
-
     .input-wrapper input:focus ~ .focus-border,
-    .input-wrapper textarea:focus ~ .focus-border,
-    .input-wrapper select:focus ~ .focus-border {
-        width: 100%;
-    }
+    .input-wrapper textarea:focus ~ .focus-border { width: 100%; }
 
-    .card-number {
-        position: absolute;
-        top: 10px;
-        left: 10px;
-        background: rgba(255, 255, 255, 0.15);
-        color: #fff;
-        font-weight: bold;
-        padding: 4px 8px;
-        border-radius: 12px;
-        font-size: 14px;
-        pointer-events: none;
-    }
-
+    /* --- KART KUTUSU (Tema buraya uygulanacak) --- */
     .card-box {
         position: relative;
+        /* Varsayılan stil (backdrop-filter korunuyor) */
         backdrop-filter: blur(25px);
-        background: rgba(255,255,255,0.05);
+        background: rgba(255,255,255,0.05); /* Default */
         border: 1px solid rgba(255,255,255,0.35);
         padding: 60px 22px 22px 22px;
         border-radius: 14px;
         margin-bottom: 18px;
+        transition: background 0.5s ease, border-color 0.5s ease; /* Renk geçişi yumuşak olsun */
     }
 
-    .custom-select {
-        position: relative;
-        z-index: 1000;
-        cursor: pointer;
+    .card-number {
+        position: absolute; top: 10px; left: 10px;
+        background: rgba(255, 255, 255, 0.2);
+        color: #fff; font-weight: bold; padding: 4px 8px; border-radius: 12px; font-size: 14px;
+    }
+
+    /* --- TEMA SEÇİCİ TASARIMI (CSS GÜNCELLEMESİ) --- */
+    .theme-selector-wrapper {
+        margin-bottom: 25px;
+        background: rgba(255, 255, 255, 0.15);
+        padding: 15px;
         border-radius: 12px;
-        background: rgba(255,255,255,0.15);
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
-        border: 1px solid rgba(255,255,255,0.3);
-        color: #fff;
-        padding: 10px 12px;
-        user-select: none;
-    }
-
-    .custom-select .selected::after {
-        content: "▾";
-        float: right;
-    }
-
-    .custom-select ul.options {
-        position: absolute;
-        top: 100%;
-        left: 0;
-        right: 0;
-        background: rgba(255,255,255,0.9); /* Biraz daha opak yaptım okunsun diye */
-        backdrop-filter: blur(15px);
-        -webkit-backdrop-filter: blur(12px);
-        border: 1px solid rgba(255,255,255,0.4);
-        color: #333; 
-        border-radius: 12px;
-        list-style: none;
-        padding: 0;
-        margin: 5px 0 0 0;
-        display: none;
-        max-height: 200px;
-        overflow-y: auto;
-        z-index: 1000;
-    }
-
-    .custom-select ul.options li {
-        padding: 10px 12px;
-        transition: background 0.2s;
-        border-bottom: 1px solid rgba(0,0,0,0.05);
-    }
-
-    .custom-select ul.options li:hover {
-        background: rgba(142, 197, 252, 0.3);
-    }
-
-    .delete-btn {
-        background: #ff4d4d;
-        border: none;
-        padding: 10px;
-        border-radius: 8px;
-        color: white;
-        cursor: pointer;
-        margin-top: 12px;
-    }
-
-    .add-btn, .create-btn, .cancel-btn {
-        width: 100%;
-        padding: 12px;
-        margin-top: 10px;
-        border-radius: 8px;
-        border: none;
-        cursor: pointer;
-        font-size: 16px;
-    }
-
-    .add-btn { background: #fff; color:#333; }
-    .create-btn { background:#fff; font-weight:bold; color: #7b68ee; }
-    .cancel-btn { background:#ff4040; color:#fff; }
-
-    .success-msg, .error-msg {
-        padding: 12px;
-        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.3);
         text-align: center;
-        font-weight: 600;
-        margin-bottom: 15px;
     }
 
-    .success-msg {
-        background: rgba(0,255,150,0.25);
-        border: 1px solid rgba(0,255,150,0.4);
-        color:#003d18;
+    .theme-label {
+        color: #fff; display: block; margin-bottom: 10px; font-weight: 600;
     }
 
-    .error-msg {
-        background: rgba(255,0,0,0.25);
-        border: 1px solid rgba(255,0,0,0.4);
-        color: #ffcccc; /* Koyu kırmızı arka planda okunsun diye açtım */
-        text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    .theme-options {
+        display: flex; justify-content: center; gap: 15px; flex-wrap: wrap;
     }
+    
+    .theme-options input[type="radio"] { display: none; }
+
+    /* Yuvarlak Butonlar */
+    .theme-circle {
+        width: 45px; height: 45px;
+        border-radius: 50%;
+        cursor: pointer;
+        border: 3px solid rgba(255, 255, 255, 0.4); /* Hafif beyaz çerçeve */
+        position: relative;
+        transition: transform 0.2s, box-shadow 0.2s;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    .theme-circle:hover { transform: translateY(-3px); }
+
+    /* SEÇİLİ OLDUĞUNDA (Tik İşareti Geliyor) */
+    .theme-options input[type="radio"]:checked + .theme-circle {
+        border-color: #fff;
+        transform: scale(1.15);
+        box-shadow: 0 0 15px rgba(255, 255, 255, 0.5); /* Parlama */
+    }
+
+    /* Tik İşareti (Pseudo-element) */
+    .theme-options input[type="radio"]:checked + .theme-circle::after {
+        content: '✓';
+        color: #fff;
+        font-size: 24px;
+        font-weight: bold;
+        position: absolute;
+        top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+        text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    }
+
+    /* CUSTOM SELECT */
+    .custom-select {
+        position: relative; z-index: 1000; cursor: pointer;
+        border-radius: 12px; background: rgba(255,255,255,0.15);
+        border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 10px 12px;
+    }
+    .custom-select ul.options {
+        position: absolute; top: 100%; left: 0; right: 0;
+        background: rgba(255,255,255,0.95); border-radius: 12px;
+        list-style: none; padding: 0; margin: 5px 0 0 0; display: none;
+        max-height: 200px; overflow-y: auto; color: #333;
+    }
+    .custom-select ul.options li { padding: 10px; border-bottom: 1px solid #eee; }
+    .custom-select ul.options li:hover { background: #dceefc; }
+
+    /* BUTTONS */
+    .delete-btn { background: #ff4d4d; border: none; padding: 8px 12px; border-radius: 8px; color: white; cursor: pointer; margin-top: 10px; float: right; font-size: 13px;}
+    .add-btn { width: 100%; padding: 12px; margin-top: 10px; border-radius: 8px; border: none; cursor: pointer; font-size: 16px; background: #fff; color:#333; }
+    .create-btn { width: 100%; padding: 12px; margin-top: 10px; border-radius: 8px; border: none; cursor: pointer; font-size: 16px; background:#fff; font-weight:bold; color: #7b68ee; }
+    .cancel-btn { width: 100%; padding: 12px; margin-top: 10px; border-radius: 8px; border: none; cursor: pointer; font-size: 16px; background:#ff4040; color:#fff; }
+
+    .success-msg { background: rgba(0,255,150,0.25); border: 1px solid rgba(0,255,150,0.4); color:#003d18; padding: 12px; border-radius: 10px; text-align:center; }
+    .error-msg { background: rgba(255,0,0,0.25); border: 1px solid rgba(255,0,0,0.4); color: #ffcccc; padding: 12px; border-radius: 10px; text-align:center; }
 </style>
 </head>
 
@@ -316,9 +274,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     <?php if(isset($success)): ?>
         <p class="success-msg"><?= $success ?></p>
-        <script>
-            setTimeout(()=>{ window.location.href="my_sets.php"; }, 2000);
-        </script>
+        <script>setTimeout(()=>{ window.location.href="my_sets.php"; }, 2000);</script>
     <?php elseif(isset($error)): ?>
         <p class="error-msg"><?= $error ?></p>
     <?php endif; ?>
@@ -327,7 +283,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <form method="POST">
 
         <div class="input-wrapper">
-            <textarea class="auto-expand" rows="1" name="set_title" required  placeholder=" "><?php echo isset($_POST['set_title']) ? htmlspecialchars($_POST['set_title']) : ''; ?></textarea>
+            <textarea class="auto-expand" rows="1" name="set_title" required placeholder=" "><?php echo isset($_POST['set_title']) ? htmlspecialchars($_POST['set_title']) : ''; ?></textarea>
             <label>Set Başlığı</label>
             <span class="focus-border"></span>
         </div>
@@ -356,6 +312,31 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <input type="hidden" name="set_category" id="hiddenCategory" required>
         </div>
 
+        <div class="theme-selector-wrapper">
+            <span class="theme-label">Kart Teması Seçin:</span>
+            <div class="theme-options">
+                <?php 
+                if ($result_themes->num_rows > 0):
+                    $first = true;
+                    while($theme = $result_themes->fetch_assoc()): 
+                ?>
+                    <label>
+                        <input type="radio" 
+                            name="set_theme_id" 
+                            value="<?php echo $theme['theme_id']; ?>" 
+                            data-css="<?php echo $theme['css_class']; ?>"
+                            onclick="changePreview(this)"
+                            <?php if($first) { echo "checked"; $first = false; } ?>
+                        >
+                        <div class="theme-circle" 
+                            title="<?php echo $theme['theme_name']; ?>"
+                            style="background: <?php echo $theme['preview_color']; ?>;">
+                        </div>
+                    </label>
+                <?php endwhile; endif; ?>
+            </div>
+        </div>
+
         <h3 style="color:white; text-align:center;">Kartlar</h3>
 
         <div id="cardsContainer">
@@ -365,13 +346,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <label>Ön Yüz</label>
                     <span class="focus-border"></span>
                 </div>
-
                 <div class="input-wrapper">
                     <input type="text" name="defination[]" placeholder=" " required>
                     <label>Arka Yüz</label>
                     <span class="focus-border"></span>
                 </div>
-                <button type="button" class="delete-btn" style="display:none">Kartı Sil</button>
+                <button type="button" class="delete-btn" style="display:none">Sil</button>
             </div>
 
             <div class="card-box">
@@ -380,13 +360,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <label>Ön Yüz</label>
                     <span class="focus-border"></span>
                 </div>
-
                 <div class="input-wrapper">
                     <input type="text" name="defination[]" placeholder=" " required>
                     <label>Arka Yüz</label>
                     <span class="focus-border"></span>
                 </div>
-                <button type="button" class="delete-btn" style="display:none">Kartı Sil</button>
+                <button type="button" class="delete-btn" style="display:none">Sil</button>
             </div>
         </div>
 
@@ -400,6 +379,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 </div>
 
 <script>
+    // Kategori Seçimi (Değişmedi)
     const categorySelect = document.getElementById("categorySelect");
     const selected = categorySelect.querySelector(".selected");
     const optionsContainer = categorySelect.querySelector(".options");
@@ -423,6 +403,36 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     });
 
+    // --- ÖNİZLEME FONKSİYONU (GÜNCELLENDİ) ---
+    function changePreview(element) {
+        // Seçilen temanın CSS class'ını al (örn: bg-sunset)
+        const cssClass = element.getAttribute('data-css');
+        
+        // Tüm kart kutularını seç
+        const cards = document.querySelectorAll('.card-box');
+        
+        cards.forEach(card => {
+            // Mevcut "bg-" ile başlayan classları temizle
+            card.classList.forEach(cls => {
+                if (cls.startsWith('bg-')) {
+                    card.classList.remove(cls);
+                }
+            });
+            // Yeni temayı ekle (Bu classlar style.css içinde var)
+            card.classList.add(cssClass);
+        });
+    }
+
+    // Sayfa Yüklendiğinde
+    window.onload = function() {
+        const checkedInput = document.querySelector('input[name="set_theme_id"]:checked');
+        if(checkedInput) {
+            changePreview(checkedInput);
+        }
+        updateCardNumbers();
+    };
+
+    // Kart Numaraları ve Textarea Genişletme
     function updateCardNumbers() {
         const cards = document.querySelectorAll("#cardsContainer .card-box");
         cards.forEach((card, index) => {
@@ -440,16 +450,22 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         textarea.style.height = 'auto';
         textarea.style.height = textarea.scrollHeight + 'px';
     }
-
     document.querySelectorAll('textarea.auto-expand').forEach(textarea => {
-        autoExpandTextarea(textarea);
         textarea.addEventListener('input', () => autoExpandTextarea(textarea));
     });
 
+    // --- KART EKLEME (GÜNCELLENDİ) ---
     function addCard() {
         const container = document.getElementById("cardsContainer");
         const box = document.createElement("div");
         box.className = "card-box";
+
+        // Yeni eklenen kartın rengi, o an seçili olan tema olmalı
+        const checkedInput = document.querySelector('input[name="set_theme_id"]:checked');
+        if(checkedInput) {
+             const currentTheme = checkedInput.getAttribute('data-css');
+             box.classList.add(currentTheme);
+        }
 
         box.innerHTML = `
             <div class="input-wrapper">
@@ -462,10 +478,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 <label>Arka Yüz</label>
                 <span class="focus-border"></span>
             </div>
-            <button type="button" class="delete-btn">Kartı Sil</button>
+            <button type="button" class="delete-btn">Sil</button>
         `;
 
         container.appendChild(box);
+        
+        // Silme butonu mantığı
         const delBtn = box.querySelector(".delete-btn");
         delBtn.addEventListener("click", function() {
             box.remove();
