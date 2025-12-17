@@ -42,19 +42,33 @@ if (isset($_POST['change_password'])) {
     }
 }
 
-// --- 2. HESAP SİLME ---
+// --- 2. HESAP SİLME (GÜNCELLENDİ: Admin Kontrolü) ---
 if (isset($_POST['delete_account'])) {
-    $sql_pic = "SELECT profile_pic FROM users WHERE user_id = $user_id";
-    $res_pic = $conn->query($sql_pic);
-    $row_pic = $res_pic->fetch_assoc();
-    if (!empty($row_pic['profile_pic']) && file_exists($row_pic['profile_pic'])) {
-        unlink($row_pic['profile_pic']);
-    }
-    $sql_del_user = "DELETE FROM users WHERE user_id = $user_id";
-    if ($conn->query($sql_del_user)) {
-        session_destroy();
-        header("Location: index.php?msg=account_deleted");
+    // Önce kullanıcının admin olup olmadığını kontrol et
+    $check_admin_sql = "SELECT is_admin FROM users WHERE user_id = $user_id";
+    $check_admin_res = $conn->query($check_admin_sql);
+    $admin_row = $check_admin_res->fetch_assoc();
+
+    if ($admin_row['is_admin'] == 1) {
+        // Eğer admin ise işlemi durdur ve uyarı ver (Javascript alert ile veya yönlendirerek)
+        echo "<script>alert('⛔ Yöneticiler hesaplarını silemezler!'); window.location.href='profile.php';</script>";
         exit;
+    } else {
+        // Admin DEĞİLSE silme işlemine devam et
+        $sql_pic = "SELECT profile_pic FROM users WHERE user_id = $user_id";
+        $res_pic = $conn->query($sql_pic);
+        $row_pic = $res_pic->fetch_assoc();
+        
+        if (!empty($row_pic['profile_pic']) && file_exists($row_pic['profile_pic'])) {
+            unlink($row_pic['profile_pic']);
+        }
+        
+        $sql_del_user = "DELETE FROM users WHERE user_id = $user_id";
+        if ($conn->query($sql_del_user)) {
+            session_destroy();
+            header("Location: index.php?msg=account_deleted");
+            exit;
+        }
     }
 }
 
@@ -100,8 +114,8 @@ if (isset($_FILES['profile_image'])) {
     }
 }
 
-// Kullanıcı Bilgileri
-$sql_user = "SELECT username, email, created_at, profile_pic FROM users WHERE user_id = $user_id";
+// Kullanıcı Bilgileri (GÜNCELLENDİ: is_admin eklendi)
+$sql_user = "SELECT username, email, created_at, profile_pic, is_admin FROM users WHERE user_id = $user_id";
 $res_user = $conn->query($sql_user);
 $user_info = $res_user->fetch_assoc();
 
@@ -233,18 +247,16 @@ $res_folders = $conn->query("SELECT * FROM folders WHERE user_id = $user_id ORDE
             background: rgba(255, 255, 255, 0.1);
         }
 
-        /* Form Gruplarını Relative yapıyoruz ki ikonu içine koyabilelim */
         .form-group { 
             margin-bottom: 15px; 
-            position: relative; /* Göz ikonu için gerekli */
+            position: relative; 
         }
 
         .form-group label { display: block; margin-bottom: 5px; color: #555; font-weight: 600; }
         
-        /* Input'un sağ tarafında ikona yer açmak için padding-right veriyoruz */
         .form-group input { 
             width: 100%; 
-            padding: 10px 40px 10px 10px; /* Sağdan 40px boşluk */
+            padding: 10px 40px 10px 10px; 
             border: 1px solid rgba(0,0,0,0.1); 
             border-radius: 8px; 
             background: rgba(255,255,255,0.8);
@@ -255,11 +267,10 @@ $res_folders = $conn->query("SELECT * FROM folders WHERE user_id = $user_id ORDE
         }
         .btn-update-pass:hover { background: #0773c7; }
 
-        /* Göz İkonu Stili */
         .toggle-password-icon {
             position: absolute;
             right: 15px;
-            bottom: 12px; /* Input yüksekliğine göre ortalama */
+            bottom: 12px; 
             cursor: pointer;
             color: #777;
             transition: color 0.3s;
@@ -278,6 +289,12 @@ $res_folders = $conn->query("SELECT * FROM folders WHERE user_id = $user_id ORDE
         .danger-zone p { margin-bottom: 20px; font-size: 14px; color: rgba(255,255,255,0.9); }
         .btn-delete-account { background: #ff4757; color: white; border: none; padding: 12px 30px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 15px; box-shadow: 0 4px 10px rgba(255, 71, 87, 0.3); }
         .btn-delete-account:hover { background: #e04050; transform: scale(1.02); box-shadow: 0 6px 15px rgba(255, 71, 87, 0.5); }
+        
+        /* Admin Kilit Bölgesi */
+        .admin-locked {
+            background: rgba(52, 152, 219, 0.15); border: 1px solid rgba(52, 152, 219, 0.5); padding: 20px; border-radius: 20px; text-align: center; color: #fff; margin-top: 30px; backdrop-filter: blur(15px);
+        }
+        .admin-locked h3 { margin-top: 0; color: #fff; }
     </style>
 </head>
 <body>
@@ -298,6 +315,9 @@ $res_folders = $conn->query("SELECT * FROM folders WHERE user_id = $user_id ORDE
                 </div>
             </form>
             <h1>Merhaba, <?php echo htmlspecialchars($user_info['username']); ?>!</h1>
+            <?php if ($user_info['is_admin'] == 1): ?>
+                <span style="background: #e1b12c; color: #2f3640; padding: 5px 10px; border-radius: 10px; font-weight: bold; font-size: 12px; margin-bottom: 10px; display: inline-block;">YÖNETİCİ</span>
+            <?php endif; ?>
             <p>📧 <?php echo htmlspecialchars($user_info['email']); ?></p>
             <p>📅 Üyelik Tarihi: <?php echo date("d.m.Y", strtotime($user_info['created_at'])); ?></p>
         </div>
@@ -388,13 +408,20 @@ $res_folders = $conn->query("SELECT * FROM folders WHERE user_id = $user_id ORDE
             </div>
         </div>
 
-        <div class="danger-zone">
-            <h3>Hesap İşlemleri</h3>
-            <p>Hesabını silersen tüm verilerin kalıcı olarak silinecektir.</p>
-            <form method="POST">
-                <button type="submit" name="delete_account" class="btn-delete-account" onclick="return confirm('❗ DİKKAT: Hesabını tamamen silmek üzeresin. Devam etmek istiyor musun?');">⚠️ Hesabımı Kalıcı Olarak Sil</button>
-            </form>
-        </div>
+        <?php if ($user_info['is_admin'] != 1): ?>
+            <div class="danger-zone">
+                <h3>Hesap İşlemleri</h3>
+                <p>Hesabını silersen tüm verilerin kalıcı olarak silinecektir.</p>
+                <form method="POST">
+                    <button type="submit" name="delete_account" class="btn-delete-account" onclick="return confirm('❗ DİKKAT: Hesabını tamamen silmek üzeresin. Devam etmek istiyor musun?');">⚠️ Hesabımı Kalıcı Olarak Sil</button>
+                </form>
+            </div>
+        <?php else: ?>
+            <div class="admin-locked">
+                <h3>🛡️ Hesap Güvenliği</h3>
+                <p>Yönetici (Admin) rolüne sahip olduğunuz için hesabınızı silemezsiniz.</p>
+            </div>
+        <?php endif; ?>
 
     </div>
 
@@ -413,7 +440,7 @@ $res_folders = $conn->query("SELECT * FROM folders WHERE user_id = $user_id ORDE
             }
         }
 
-        // Şifre Göster/Gizle (Her input için genel fonksiyon)
+        // Şifre Göster/Gizle
         function togglePass(inputId, icon) {
             const input = document.getElementById(inputId);
             

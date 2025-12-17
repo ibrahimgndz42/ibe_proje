@@ -3,37 +3,46 @@ include "connectDB.php";
 include "menu.php"; 
 
 $status_msg = "";
+$is_logged_in = isset($_SESSION['user_id']);
 
-// Form Gönderildiğinde Çalışacak Kod
+// Form Gönderildiğinde
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $name = isset($_POST['name']) ? trim(htmlspecialchars($_POST['name'])) : "";
-    $subject = isset($_POST['subject']) ? trim(htmlspecialchars($_POST['subject'])) : "";
+    
+    $type = isset($_POST['type']) ? $_POST['type'] : 'oneri';
     $message = isset($_POST['message']) ? trim(htmlspecialchars($_POST['message'])) : "";
     
-    // Giriş yapmışsa ID'yi al, yapmamışsa NULL
-    $user_id = isset($_SESSION['user_id']) ? $_SESSION['user_id'] : NULL;
+    // Değişkenleri hazırla
+    $user_id = null;
+    $guest_name = null;
 
-    if (!empty($name) && !empty($message)) {
-        // Veritabanına Ekleme
-        $stmt = $conn->prepare("INSERT INTO suggestions (user_id, name, subject, message) VALUES (?, ?, ?, ?)");
-        // user_id integer olabilir veya null olabilir, bu yüzden bind_param'ı dikkatli yapıyoruz
-        // Ancak basitlik adına query içine gömerek veya bind_param ile şöyle yapabiliriz:
+    if ($is_logged_in) {
+        // Üye ise ID'sini al, ismi boş kalsın (zaten ID'den buluruz)
+        $user_id = $_SESSION['user_id'];
+    } else {
+        // Misafir ise ID yok, girilen ismi al
+        $guest_name = isset($_POST['guest_name']) ? trim(htmlspecialchars($_POST['guest_name'])) : "Misafir";
+    }
+
+    // Güvenlik: Tür kontrolü
+    $allowed_types = ['oneri', 'istek', 'hata'];
+    if (!in_array($type, $allowed_types)) $type = 'oneri';
+
+    if (!empty($message)) {
         
-        // ID varsa 'i', yoksa null geçmek biraz karışıktır, basit query kullanalım:
-        if($user_id){
-             $sql = "INSERT INTO suggestions (user_id, name, subject, message) VALUES ('$user_id', '$name', '$subject', '$message')";
-        } else {
-             $sql = "INSERT INTO suggestions (user_id, name, subject, message) VALUES (NULL, '$name', '$subject', '$message')";
-        }
+        // SQL Sorgusu (user_id NULL olabilir)
+        // Hazırlanan ifadeyi dinamik oluşturuyoruz
+        $stmt = $conn->prepare("INSERT INTO suggestions (user_id, guest_name, type, message) VALUES (?, ?, ?, ?)");
+        $stmt->bind_param("isss", $user_id, $guest_name, $type, $message);
 
-        if($conn->query($sql)){
-            $status_msg = '<div class="alert-success">Mesajınız başarıyla iletildi! Teşekkürler.</div>';
+        if ($stmt->execute()) {
+            $status_msg = '<div class="alert-success">✅ Mesajınız başarıyla iletildi! Teşekkürler.</div>';
         } else {
-            $status_msg = '<div class="alert-error">Bir hata oluştu.</div>';
+            $status_msg = '<div class="alert-error">❌ Veritabanı hatası: ' . $conn->error . '</div>';
         }
+        $stmt->close();
 
     } else {
-        $status_msg = '<div class="alert-error">Lütfen isim ve mesaj alanlarını doldurun.</div>';
+        $status_msg = '<div class="alert-error">⚠️ Lütfen mesaj alanını doldurun.</div>';
     }
 }
 ?>
@@ -56,11 +65,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         .container {
             width: 90%;
-            max-width: 800px; /* Form çok geniş olmasın diye biraz kıstım */
+            max-width: 800px;
             margin: 40px auto;
         }
 
-        /* Glassmorphism Kartları (Admin ile aynı) */
         .glass-card {
             background: rgba(255, 255, 255, 0.35);
             backdrop-filter: blur(15px);
@@ -74,15 +82,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         h1 { color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-top: 0; margin-bottom: 20px; }
         h2 { color: #333; font-size: 1.5rem; border-bottom: 2px solid rgba(255,255,255,0.5); padding-bottom: 10px; margin-bottom: 20px; }
 
-        /* Form Elemanları (Admin stili) */
-        label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-            color: #444;
-        }
+        label { display: block; margin-bottom: 8px; font-weight: 600; color: #444; }
 
-        input[type="text"], textarea {
+        input[type="text"], select, textarea {
             width: 100%;
             padding: 12px;
             margin-bottom: 20px;
@@ -91,12 +93,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             outline: none;
             background: rgba(255, 255, 255, 0.8);
             font-family: 'Inter', sans-serif;
-            box-sizing: border-box; /* Padding taşmasın diye */
+            font-size: 15px;
+            box-sizing: border-box;
         }
 
-        input:focus, textarea:focus {
+        select:focus, textarea:focus, input:focus {
             background: #fff;
             border-color: #6c5ce7;
+            box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.2);
         }
 
         button.btn-submit {
@@ -117,26 +121,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             transform: translateY(-2px);
         }
 
-        /* Mesaj Kutuları */
-        .alert-success {
-            background: rgba(46, 204, 113, 0.2);
-            border: 1px solid #2ecc71;
-            color: #27ae60;
-            padding: 15px;
+        .alert-success { background: rgba(46, 204, 113, 0.2); border: 1px solid #2ecc71; color: #27ae60; padding: 15px; border-radius: 8px; margin-bottom: 20px; font-weight: bold; text-align: center; }
+        .alert-error { background: rgba(231, 76, 60, 0.2); border: 1px solid #e74c3c; color: #c0392b; padding: 15px; border-radius: 8px; margin-bottom: 20px; font-weight: bold; text-align: center; }
+        
+        .user-info-box {
+            background: rgba(255,255,255,0.5);
+            padding: 10px;
             border-radius: 8px;
             margin-bottom: 20px;
-            font-weight: bold;
+            color: #555;
+            font-size: 14px;
+            border-left: 4px solid #6c5ce7;
         }
-        .alert-error {
-            background: rgba(231, 76, 60, 0.2);
-            border: 1px solid #e74c3c;
-            color: #c0392b;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            font-weight: bold;
-        }
-
     </style>
 </head>
 <body>
@@ -157,12 +153,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         <form method="POST">
             
-            <label>İsim / Rumuz:</label>
-            <input type="text" name="name" required placeholder="Adınız..." 
-                   value="<?php echo isset($_SESSION['username']) ? htmlspecialchars($_SESSION['username']) : ''; ?>">
+            <?php if ($is_logged_in): ?>
+                <div class="user-info-box">
+                    👤 <b><?php echo htmlspecialchars($_SESSION['username']); ?></b> olarak gönderiyorsunuz.
+                </div>
+            <?php else: ?>
+                <label>İsim / Rumuz (Zorunlu Değil):</label>
+                <input type="text" name="guest_name" placeholder="Adınız...">
+            <?php endif; ?>
 
-            <label>Konu (Opsiyonel):</label>
-            <input type="text" name="subject" placeholder="Örn: Set eklerken hata alıyorum">
+            <label>Bildirim Türü:</label>
+            <select name="type" required>
+                <option value="oneri">💡 Öneri</option>
+                <option value="istek">🚀 Özellik İsteği</option>
+                <option value="hata">⚠️ Hata Bildirimi</option>
+            </select>
 
             <label>Mesajınız:</label>
             <textarea name="message" rows="6" required placeholder="Düşüncelerinizi buraya yazın..."></textarea>

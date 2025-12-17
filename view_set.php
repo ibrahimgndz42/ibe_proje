@@ -384,6 +384,7 @@ while($row = $result_cards->fetch_assoc()) {
 </div> 
 
 <script>
+    // JS HATALARI DÜZELTİLDİ
     const cards = <?php echo json_encode($cards); ?>;
     
     // Metin öğelerini alıyoruz
