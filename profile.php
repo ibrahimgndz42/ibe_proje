@@ -3,25 +3,117 @@ include "session_check.php";
 include "connectDB.php";
 
 $user_id = $_SESSION['user_id'];
+$pass_msg = ""; 
+$show_password_form = false; 
 
-// Kullanıcı bilgisini çek
-$sql_user = "SELECT username, email, created_at FROM users WHERE user_id = $user_id";
+// --- 1. ŞİFRE DEĞİŞTİRME İŞLEMİ ---
+if (isset($_POST['change_password'])) {
+    $show_password_form = true; 
+    
+    $current_pass = $_POST['current_pass'];
+    $new_pass = $_POST['new_pass'];
+    $confirm_pass = $_POST['confirm_pass'];
+
+    $sql_pass = "SELECT password FROM users WHERE user_id = $user_id";
+    $res_pass = $conn->query($sql_pass);
+    $row_pass = $res_pass->fetch_assoc();
+    $db_password_hash = $row_pass['password'];
+
+    if (password_verify($current_pass, $db_password_hash)) {
+        if ($new_pass === $confirm_pass) {
+            if (!empty($new_pass)) {
+                $new_hash = password_hash($new_pass, PASSWORD_DEFAULT);
+                $stmt = $conn->prepare("UPDATE users SET password = ? WHERE user_id = ?");
+                $stmt->bind_param("si", $new_hash, $user_id);
+                
+                if ($stmt->execute()) {
+                    $pass_msg = "<div class='alert success'>✅ Şifreniz başarıyla güncellendi!</div>";
+                } else {
+                    $pass_msg = "<div class='alert error'>❌ Bir hata oluştu.</div>";
+                }
+            } else {
+                $pass_msg = "<div class='alert error'>⚠️ Yeni şifre boş olamaz.</div>";
+            }
+        } else {
+            $pass_msg = "<div class='alert error'>⚠️ Yeni şifreler uyuşmuyor.</div>";
+        }
+    } else {
+        $pass_msg = "<div class='alert error'>⛔ Mevcut şifreniz hatalı.</div>";
+    }
+}
+
+// --- 2. HESAP SİLME ---
+if (isset($_POST['delete_account'])) {
+    $sql_pic = "SELECT profile_pic FROM users WHERE user_id = $user_id";
+    $res_pic = $conn->query($sql_pic);
+    $row_pic = $res_pic->fetch_assoc();
+    if (!empty($row_pic['profile_pic']) && file_exists($row_pic['profile_pic'])) {
+        unlink($row_pic['profile_pic']);
+    }
+    $sql_del_user = "DELETE FROM users WHERE user_id = $user_id";
+    if ($conn->query($sql_del_user)) {
+        session_destroy();
+        header("Location: index.php?msg=account_deleted");
+        exit;
+    }
+}
+
+// --- 3. RESİM SİLME ---
+if (isset($_POST['delete_photo'])) {
+    $sql_check = "SELECT profile_pic FROM users WHERE user_id = $user_id";
+    $res_check = $conn->query($sql_check);
+    $row_check = $res_check->fetch_assoc();
+    if (!empty($row_check['profile_pic']) && file_exists($row_check['profile_pic'])) {
+        unlink($row_check['profile_pic']);
+    }
+    $conn->query("UPDATE users SET profile_pic = NULL WHERE user_id = $user_id");
+    header("Location: profile.php");
+    exit;
+}
+
+// --- 4. RESİM YÜKLEME ---
+if (isset($_FILES['profile_image'])) {
+    $target_dir = "uploads/";
+    if (!file_exists($target_dir)) { mkdir($target_dir, 0777, true); }
+    $file_name = basename($_FILES["profile_image"]["name"]);
+    $imageFileType = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
+    $new_file_name = "profile_" . $user_id . "_" . time() . "." . $imageFileType;
+    $target_file = $target_dir . $new_file_name;
+    $uploadOk = 1;
+    $check = getimagesize($_FILES["profile_image"]["tmp_name"]);
+    if($check === false) $uploadOk = 0;
+    if ($_FILES["profile_image"]["size"] > 5000000) $uploadOk = 0;
+    if($imageFileType != "jpg" && $imageFileType != "png" && $imageFileType != "jpeg") $uploadOk = 0;
+
+    if ($uploadOk == 1) {
+        if (move_uploaded_file($_FILES["profile_image"]["tmp_name"], $target_file)) {
+            $sql_old = "SELECT profile_pic FROM users WHERE user_id = $user_id";
+            $res_old = $conn->query($sql_old);
+            $old_row = $res_old->fetch_assoc();
+            if(!empty($old_row['profile_pic']) && file_exists($old_row['profile_pic'])){
+                unlink($old_row['profile_pic']);
+            }
+            $conn->query("UPDATE users SET profile_pic = '$target_file' WHERE user_id = $user_id");
+            header("Location: profile.php");
+            exit;
+        }
+    }
+}
+
+// Kullanıcı Bilgileri
+$sql_user = "SELECT username, email, created_at, profile_pic FROM users WHERE user_id = $user_id";
 $res_user = $conn->query($sql_user);
 $user_info = $res_user->fetch_assoc();
 
-// 1. Kendi Setlerim
-$sql_my_sets = "SELECT 
-                    sets.*, 
-                    categories.name AS category
-                FROM sets 
-                LEFT JOIN categories ON sets.category_id = categories.category_id
-                WHERE user_id = $user_id 
-                ORDER BY created_at DESC";
-$res_my_sets = $conn->query($sql_my_sets);
+$profile_pic_path = "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png";
+$has_custom_pic = false;
+if (!empty($user_info['profile_pic']) && file_exists($user_info['profile_pic'])) {
+    $profile_pic_path = $user_info['profile_pic'];
+    $has_custom_pic = true;
+}
 
-// 2. Klasörlerim
-$sql_folders = "SELECT * FROM folders WHERE user_id = $user_id ORDER BY created_at DESC";
-$res_folders = $conn->query($sql_folders);
+$res_my_sets = $conn->query("SELECT sets.*, categories.name AS category FROM sets LEFT JOIN categories ON sets.category_id = categories.category_id WHERE user_id = $user_id ORDER BY created_at DESC");
+$res_folders = $conn->query("SELECT * FROM folders WHERE user_id = $user_id ORDER BY created_at DESC");
 ?>
 
 <!DOCTYPE html>
@@ -29,184 +121,163 @@ $res_folders = $conn->query($sql_folders);
 <head>
     <meta charset="UTF-8">
     <title>Profilim - Mini Sınavım</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
     <style>
         /* SIFIRLAMA VE TEMEL AYARLAR */
-        * {
-            box-sizing: border-box;
-        }
+        * { box-sizing: border-box; }
+        html { overflow-y: scroll; }
 
-        html {
-            overflow-y: scroll; /* Kaydırma çubuğu alanını rezerve et */
-        }
-
-        /* İÇERİK KONTEYNERİ */
         .container {
             width: 100%;
-            max-width: 1200px; /* sets.php ile aynı genişlik */
-            margin: 20px auto; /* sets.php ile aynı üst boşluk */
+            max-width: 1200px;
+            margin: 20px auto;
             padding: 0 20px 40px 20px;
         }
 
-        /* CAM GÖRÜNÜMLÜ KART (Ortak Stil) */
         .glass-panel {
-            background: rgba(255, 255, 255, 0.25); /* sets.php'deki opaklık */
+            background: rgba(255, 255, 255, 0.25);
             backdrop-filter: blur(15px);
             border: 1px solid rgba(255, 255, 255, 0.3);
-            border-radius: 20px; /* sets.php'deki yuvarlaklık */
+            border-radius: 20px;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
         }
 
-        /* PROFİL KARTI (En Üst) */
+        /* PROFİL HEADER */
         .profile-header {
             text-align: center;
             padding: 40px;
             margin-bottom: 40px;
             color: #fff;
+            position: relative;
         }
-
-        .profile-header h1 {
-            margin: 0 0 10px 0;
-            font-size: 36px; /* sets.php başlık boyutu */
-            font-weight: 800;
-            text-shadow: 0 2px 5px rgba(0,0,0,0.15);
+        .profile-pic-wrapper {
+            position: relative;
+            width: 150px;
+            height: 150px;
+            margin: 0 auto 20px auto;
         }
-
-        .profile-header p {
-            margin: 5px 0;
-            font-size: 16px;
-            color: rgba(255, 255, 255, 0.9);
+        .profile-pic {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 4px solid rgba(255,255,255,0.8);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            background: #fff;
         }
-
-        /* BÖLÜM BAŞLIKLARI */
-        .section-title {
-            font-size: 24px;
-            color: #fff;
-            margin-bottom: 20px;
-            font-weight: 700;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        .upload-label, .delete-btn {
+            position: absolute;
+            bottom: 5px;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            transition: 0.2s;
+            border: 2px solid white;
+            color: white;
         }
-
-        .section-title a {
-            font-size: 14px;
-            color: #fff;
-            text-decoration: underline;
-            font-weight: normal;
-        }
-
-        /* IZGARA (GRID) YAPISI - sets.php ile aynı */
-        .grid-container {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 20px;
-            margin-bottom: 50px;
-        }
+        .upload-label { right: 5px; background: #6A5ACD; }
+        .upload-label:hover { background: #584ab8; transform: scale(1.1); }
+        .delete-btn { left: 5px; background: #ff7675; border: none; }
+        .delete-btn:hover { background: #d63031; transform: scale(1.1); }
+        #file-upload { display: none; }
+        .profile-header h1 { margin: 0 0 10px 0; font-size: 32px; font-weight: 800; text-shadow: 0 2px 5px rgba(0,0,0,0.15); }
+        .profile-header p { margin: 5px 0; font-size: 16px; color: rgba(255, 255, 255, 0.9); }
 
         /* KART STİLLERİ */
-        .item-card {
-            background: rgba(255, 255, 255, 0.65); /* sets.php kart rengi */
-            border-radius: 16px;
-            padding: 20px;
-            text-decoration: none;
-            color: #333;
-            transition: all 0.3s ease;
-            border: 1px solid rgba(255, 255, 255, 0.5);
+        .section-title { font-size: 24px; color: #fff; margin-bottom: 20px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: space-between; }
+        .section-title a { font-size: 14px; color: #fff; text-decoration: underline; font-weight: normal; }
+        .grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; margin-bottom: 50px; }
+        .item-card { background: rgba(255, 255, 255, 0.65); border-radius: 16px; padding: 20px; text-decoration: none; color: #333; transition: all 0.3s ease; border: 1px solid rgba(255, 255, 255, 0.5); display: flex; flex-direction: column; min-height: 160px; }
+        .item-card:hover { transform: translateY(-5px); background: rgba(255, 255, 255, 0.95); box-shadow: 0 10px 25px rgba(0,0,0,0.15); }
+        .category-badge { align-self: flex-start; background: #6A5ACD; color: white; padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 600; margin-bottom: 15px; }
+        .card-title { font-size: 18px; font-weight: 700; color: #2c3e50; margin: 0 0 10px 0; }
+        .card-desc { font-size: 13px; color: #666; line-height: 1.4; flex-grow: 1; margin-bottom: 10px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .card-footer { border-top: 1px solid rgba(0,0,0,0.05); padding-top: 10px; font-size: 12px; color: #888; text-align: right; }
+        .folder-icon { font-size: 40px; margin-bottom: 10px; display: block; text-align: center; }
+        .folder-card-content { text-align: center; width: 100%; }
+        .empty-msg { grid-column: 1 / -1; text-align: center; padding: 40px; color: rgba(255,255,255,0.8); font-size: 18px; background: rgba(255,255,255,0.1); border-radius: 16px; border: 1px dashed rgba(255,255,255,0.3); }
+        .create-btn { display: inline-block; background: #fff; color: #6A5ACD; padding: 12px 30px; border-radius: 30px; text-decoration: none; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.1); transition: 0.3s; }
+        .create-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0,0,0,0.15); }
+
+        /* --- GÜVENLİK PANELİ STİLLERİ (Accordion) --- */
+        .security-panel {
+            margin-top: 50px;
+            margin-bottom: 30px;
+            overflow: hidden; 
+        }
+        
+        .security-header {
+            padding: 20px 30px;
+            cursor: pointer;
             display: flex;
-            flex-direction: column;
-            min-height: 160px;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.3);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            transition: 0.2s;
+        }
+        .security-header:hover {
+            background: rgba(255, 255, 255, 0.5);
+        }
+        .security-header h3 { margin: 0; color: #333; font-size: 18px; }
+        .toggle-icon { font-size: 20px; font-weight: bold; color: #555; transition: transform 0.3s; }
+
+        #password-form-container {
+            padding: 30px;
+            background: rgba(255, 255, 255, 0.1);
         }
 
-        .item-card:hover {
-            transform: translateY(-5px);
-            background: rgba(255, 255, 255, 0.95);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+        /* Form Gruplarını Relative yapıyoruz ki ikonu içine koyabilelim */
+        .form-group { 
+            margin-bottom: 15px; 
+            position: relative; /* Göz ikonu için gerekli */
         }
 
-        /* Kategori Etiketi */
-        .category-badge {
-            align-self: flex-start;
-            background: #6A5ACD; /* sets.php badge rengi */
-            color: white;
-            padding: 4px 10px;
-            border-radius: 8px;
-            font-size: 12px;
-            font-weight: 600;
-            margin-bottom: 15px;
+        .form-group label { display: block; margin-bottom: 5px; color: #555; font-weight: 600; }
+        
+        /* Input'un sağ tarafında ikona yer açmak için padding-right veriyoruz */
+        .form-group input { 
+            width: 100%; 
+            padding: 10px 40px 10px 10px; /* Sağdan 40px boşluk */
+            border: 1px solid rgba(0,0,0,0.1); 
+            border-radius: 8px; 
+            background: rgba(255,255,255,0.8);
         }
 
-        .card-title {
-            font-size: 18px;
-            font-weight: 700;
-            color: #2c3e50;
-            margin: 0 0 10px 0;
+        .btn-update-pass {
+            background: #0984e3; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s;
         }
+        .btn-update-pass:hover { background: #0773c7; }
 
-        .card-desc {
-            font-size: 13px;
-            color: #666;
-            line-height: 1.4;
-            flex-grow: 1;
-            margin-bottom: 10px;
-            /* Uzun metni kes */
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
+        /* Göz İkonu Stili */
+        .toggle-password-icon {
+            position: absolute;
+            right: 15px;
+            bottom: 12px; /* Input yüksekliğine göre ortalama */
+            cursor: pointer;
+            color: #777;
+            transition: color 0.3s;
         }
+        .toggle-password-icon:hover { color: #333; }
 
-        .card-footer {
-            border-top: 1px solid rgba(0,0,0,0.05);
-            padding-top: 10px;
-            font-size: 12px;
-            color: #888;
-            text-align: right;
-        }
+        .alert { padding: 10px; margin-bottom: 15px; border-radius: 8px; font-weight: bold; }
+        .alert.success { color: #27ae60; background: rgba(46, 204, 113, 0.2); }
+        .alert.error { color: #c0392b; background: rgba(231, 76, 60, 0.2); }
 
-        /* Klasör İkonu */
-        .folder-icon {
-            font-size: 40px;
-            margin-bottom: 10px;
-            display: block;
-            text-align: center;
+        /* Danger Zone */
+        .danger-zone {
+            background: rgba(255, 71, 87, 0.15); border: 1px solid rgba(255, 71, 87, 0.5); padding: 30px; border-radius: 20px; text-align: center; color: #fff; margin-top: 30px; backdrop-filter: blur(15px);
         }
-
-        .folder-card-content {
-            text-align: center;
-            width: 100%;
-        }
-
-        /* Boş Durum Mesajı */
-        .empty-msg {
-            grid-column: 1 / -1;
-            text-align: center;
-            padding: 40px;
-            color: rgba(255,255,255,0.8);
-            font-size: 18px;
-            background: rgba(255,255,255,0.1);
-            border-radius: 16px;
-            border: 1px dashed rgba(255,255,255,0.3);
-        }
-
-        /* Yeni Oluştur Butonu */
-        .create-btn {
-            display: inline-block;
-            background: #fff;
-            color: #6A5ACD;
-            padding: 12px 30px;
-            border-radius: 30px;
-            text-decoration: none;
-            font-weight: bold;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-            transition: 0.3s;
-        }
-        .create-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 15px rgba(0,0,0,0.15);
-        }
-
+        .danger-zone h3 { margin-top: 0; color: #ffeaa7; }
+        .danger-zone p { margin-bottom: 20px; font-size: 14px; color: rgba(255,255,255,0.9); }
+        .btn-delete-account { background: #ff4757; color: white; border: none; padding: 12px 30px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 15px; box-shadow: 0 4px 10px rgba(255, 71, 87, 0.3); }
+        .btn-delete-account:hover { background: #e04050; transform: scale(1.02); box-shadow: 0 6px 15px rgba(255, 71, 87, 0.5); }
     </style>
 </head>
 <body>
@@ -216,6 +287,16 @@ $res_folders = $conn->query($sql_folders);
     <div class="container">
         
         <div class="glass-panel profile-header">
+            <form action="" method="POST" enctype="multipart/form-data">
+                <div class="profile-pic-wrapper">
+                    <img src="<?php echo $profile_pic_path; ?>" alt="Profil Resmi" class="profile-pic">
+                    <?php if($has_custom_pic): ?>
+                        <button type="submit" name="delete_photo" class="delete-btn" title="Fotoğrafı Kaldır" onclick="return confirm('Profil fotoğrafını silmek istediğine emin misin?');">🗑️</button>
+                    <?php endif; ?>
+                    <label for="file-upload" class="upload-label" title="Fotoğrafı Değiştir"><span>📷</span></label>
+                    <input type="file" name="profile_image" id="file-upload" accept="image/*" onchange="this.form.submit()">
+                </div>
+            </form>
             <h1>Merhaba, <?php echo htmlspecialchars($user_info['username']); ?>!</h1>
             <p>📧 <?php echo htmlspecialchars($user_info['email']); ?></p>
             <p>📅 Üyelik Tarihi: <?php echo date("d.m.Y", strtotime($user_info['created_at'])); ?></p>
@@ -225,31 +306,16 @@ $res_folders = $conn->query($sql_folders);
             <span>📝 Oluşturduğum Setler</span>
             <a href="my_sets.php">Yönet & Düzenle</a>
         </div>
-
         <div class="grid-container">
             <?php if ($res_my_sets->num_rows > 0): ?>
                 <?php while($row = $res_my_sets->fetch_assoc()): ?>
-                    
                     <a href="view_set.php?id=<?php echo $row['set_id']; ?>" class="item-card">
-                        <?php 
-                            $cat = !empty($row['category']) ? htmlspecialchars($row['category']) : 'Genel';
-                        ?>
+                        <?php $cat = !empty($row['category']) ? htmlspecialchars($row['category']) : 'Genel'; ?>
                         <span class="category-badge"><?php echo $cat; ?></span>
-                        
                         <h3 class="card-title"><?php echo htmlspecialchars($row['title']); ?></h3>
-                        
-                        <div class="card-desc">
-                            <?php 
-                                $desc = $row['description'];
-                                echo htmlspecialchars($desc); 
-                            ?>
-                        </div>
-                        
-                        <div class="card-footer">
-                            Senin Setin
-                        </div>
+                        <div class="card-desc"><?php echo htmlspecialchars($row['description']); ?></div>
+                        <div class="card-footer">Senin Setin</div>
                     </a>
-
                 <?php endwhile; ?>
             <?php else: ?>
                 <div class="empty-msg">Henüz hiç set oluşturmadın.</div>
@@ -260,7 +326,6 @@ $res_folders = $conn->query($sql_folders);
             <span>📂 Klasörlerim</span>
             <a href="folders.php">Yönet & Düzenle</a>
         </div>
-
         <div class="grid-container">
             <?php if ($res_folders->num_rows > 0): ?>
                 <?php while($row = $res_folders->fetch_assoc()): ?>
@@ -270,7 +335,6 @@ $res_folders = $conn->query($sql_folders);
                         $res_count = $conn->query($sql_count);
                         $count = $res_count->fetch_assoc()['cnt'];
                     ?>
-                    
                     <a href="view_folder.php?id=<?php echo $row['folder_id']; ?>" class="item-card" style="align-items: center; justify-content: center;">
                         <div class="folder-card-content">
                             <span class="folder-icon">📁</span>
@@ -278,18 +342,92 @@ $res_folders = $conn->query($sql_folders);
                             <span style="font-size:12px; color:#666;"><?php echo $count; ?> set</span>
                         </div>
                     </a>
-
                 <?php endwhile; ?>
             <?php else: ?>
                 <div class="empty-msg">Henüz klasörün yok.</div>
             <?php endif; ?>
         </div>
-
         <div style="text-align: center; margin-top: 10px;">
             <a href="folders.php" class="create-btn">+ Yeni Klasör Oluştur</a>
         </div>
 
+
+        <div class="glass-panel security-panel">
+            
+            <div class="security-header" onclick="togglePasswordForm()">
+                <h3>🔐 Şifre Değiştir</h3>
+                <span id="toggleIcon" class="toggle-icon"><?php echo $show_password_form ? '▲' : '▼'; ?></span>
+            </div>
+
+            <div id="password-form-container" style="display: <?php echo $show_password_form ? 'block' : 'none'; ?>;">
+                
+                <?php echo $pass_msg; ?>
+
+                <form method="POST">
+                    
+                    <div class="form-group">
+                        <label>Mevcut Şifre</label>
+                        <input type="password" name="current_pass" id="current_pass" required placeholder="Şu anki şifreniz">
+                        <i class="fa-solid fa-eye toggle-password-icon" onclick="togglePass('current_pass', this)"></i>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Yeni Şifre</label>
+                        <input type="password" name="new_pass" id="new_pass" required placeholder="Yeni şifreniz">
+                        <i class="fa-solid fa-eye toggle-password-icon" onclick="togglePass('new_pass', this)"></i>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Yeni Şifre Tekrar</label>
+                        <input type="password" name="confirm_pass" id="confirm_pass" required placeholder="Yeni şifrenizi tekrar girin">
+                        <i class="fa-solid fa-eye toggle-password-icon" onclick="togglePass('confirm_pass', this)"></i>
+                    </div>
+
+                    <button type="submit" name="change_password" class="btn-update-pass">Şifreyi Güncelle</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="danger-zone">
+            <h3>Hesap İşlemleri</h3>
+            <p>Hesabını silersen tüm verilerin kalıcı olarak silinecektir.</p>
+            <form method="POST">
+                <button type="submit" name="delete_account" class="btn-delete-account" onclick="return confirm('❗ DİKKAT: Hesabını tamamen silmek üzeresin. Devam etmek istiyor musun?');">⚠️ Hesabımı Kalıcı Olarak Sil</button>
+            </form>
+        </div>
+
     </div>
+
+    <script>
+        // Formu Aç/Kapa (Accordion)
+        function togglePasswordForm() {
+            var formDiv = document.getElementById("password-form-container");
+            var icon = document.getElementById("toggleIcon");
+
+            if (formDiv.style.display === "none") {
+                formDiv.style.display = "block";
+                icon.innerHTML = "▲";
+            } else {
+                formDiv.style.display = "none";
+                icon.innerHTML = "▼";
+            }
+        }
+
+        // Şifre Göster/Gizle (Her input için genel fonksiyon)
+        function togglePass(inputId, icon) {
+            const input = document.getElementById(inputId);
+            
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.classList.remove('fa-eye');
+                icon.classList.add('fa-eye-slash');
+            } else {
+                input.type = 'password';
+                icon.classList.remove('fa-eye-slash');
+                icon.classList.add('fa-eye');
+            }
+        }
+    </script>
 
 </body>
 </html>
