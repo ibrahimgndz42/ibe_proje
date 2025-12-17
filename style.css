@@ -1,8 +1,61 @@
+/* --- TEMEL AYARLAR --- */
 body {
-    margin: 0;
-    font-family: Arial, sans-serif;
-    background: linear-gradient(135deg, #8EC5FC, #E0C3FC);
-    height: 100vh;
+    margin: 0; 
+    padding: 0;
+    font-family: 'Inter', sans-serif; /* Eğer Inter fontu yoksa Arial kullanır */
+    background: #f4f6f8; /* Kartların üzerinde süzüldüğü gri ton */
+    color: #333;
+    overflow-x: hidden; /* Yan taşmaları engelle */
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* --- ARKA PLAN KARTLARI (Animasyon) --- */
+.bg-cards-container {
+    position: fixed; /* Sayfa kaydırılsa bile arka plan sabit kalsın */
+    top: 0; 
+    left: 0; 
+    width: 100%; 
+    height: 100%;
+    z-index: -1; /* İçeriğin arkasında kalsın */
+    pointer-events: none; /* Tıklamaları engellemesin */
+    overflow: hidden;
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+}
+
+.bg-card {
+    position: absolute;
+    width: 220px; height: 150px;
+    border-radius: 15px;
+    box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+    opacity: 0.5;
+    background-image: linear-gradient(transparent 90%, rgba(255,255,255,0.3) 90%);
+    background-size: 100% 20px;
+    animation: floatCard 15s infinite ease-in-out alternate;
+}
+
+/* Kart Renkleri */
+.card-blue { background-color: #a1c4fd; border: 2px solid rgba(255,255,255,0.6); }
+.card-purple { background-color: #c471ed; border: 2px solid rgba(255,255,255,0.6); }
+.card-green { background-color: #84fab0; border: 2px solid rgba(255,255,255,0.6); }
+.card-orange { background-color: #fccb90; border: 2px solid rgba(255,255,255,0.6); }
+.card-red { background-color: #ff9a9e; border: 2px solid rgba(255,255,255,0.6); }
+
+/* Kart Pozisyonları */
+.pos-1 { top: 5%; left: 2%; transform: rotate(-8deg); animation-duration: 14s; }
+.pos-2 { top: 15%; right: 5%; transform: rotate(12deg); animation-duration: 16s; filter: blur(1px); }
+.pos-3 { bottom: 20%; left: 10%; transform: rotate(5deg); animation-duration: 18s; }
+.pos-4 { bottom: 5%; right: 2%; transform: rotate(-15deg); animation-duration: 15s; opacity: 0.3; }
+.pos-5 { top: 45%; left: 40%; transform: rotate(20deg); animation-duration: 20s; opacity: 0.2; }
+.pos-6 { top: 8%; right: 30%; transform: rotate(-5deg); animation-duration: 22s; opacity: 0.4; }
+.pos-7 { bottom: 40%; right: 25%; transform: rotate(15deg); animation-duration: 19s; opacity: 0.3; }
+.pos-8 { bottom: 10%; left: 40%; transform: rotate(-10deg); animation-duration: 21s; filter: blur(2px); }
+
+/* Animasyon Keyframe */
+@keyframes floatCard {
+    0% { transform: translateY(0) rotate(0deg); }
+    100% { transform: translateY(-30px) rotate(5deg); }
 }
 
 /* Temalar */
