@@ -41,12 +41,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         if ($validCardCount < 2) {
             $error = "En az 2 dolu kart eklemelisiniz!";
         } else {
-            // Sets tablosuna kaydet (theme yerine theme_id kaydediyoruz)
-            // Tablo yapında 'theme' sütunu VARCHAR ise adını, INT ise ID'sini kaydetmelisin.
-            // Ben burada ID kaydettiğini varsayıyorum. 
-            // Eğer ismini kaydedeceksen $_POST['theme_name'] gibi bir hidden input daha gerekebilir
-            // veya ID kaydedip ilişkisel tablo kullanmak en doğrusudur.
-            
+            // Sets tablosuna kaydet
             $stmt = $conn->prepare("INSERT INTO sets (user_id, title, description, category_id, theme_id) VALUES (?, ?, ?, ?, ?)");
             $stmt->bind_param("issii", $user_id, $set_title, $set_desc, $set_category, $set_theme_id);
             
@@ -78,17 +73,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <title>Set Oluştur</title>
 
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
 <style>
-    /* style.css içinde body arka planı tanımlı olsa bile, 
-       bu sayfada SABİT kalmasını istediğimiz için override ediyoruz.
-    */
-    body {
-        margin: 0;
-        font-family: 'Inter', sans-serif;
-        background: linear-gradient(135deg, #8EC5FC, #E0C3FC) !important; /* Sabit Mavi */
-        min-height: 100vh;
-    }
     
     * { box-sizing: border-box; }
 
@@ -99,14 +86,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         margin: 40px auto; 
     }
 
+    /* --- LOGIN SAYFASINA BENZER CAM EFEKTİ --- */
     .glass-card { 
-        backdrop-filter: blur(100px);
-        background: rgba(255, 255, 255, 0.10);
+        backdrop-filter: blur(15px);
+        background: rgba(255, 255, 255, 0.2); /* Daha açık beyaz */
         border-radius: 16px;
         padding: 35px;
         box-shadow: 0 8px 32px rgba(0,0,0,0.15);
-        border: 1px solid rgba(255,255,255,0.3);
+        border: 1px solid rgba(255,255,255,0.4);
         animation: fadeIn 0.6s ease;
+        color: #333; /* Genel yazı rengi koyu */
     }
 
     @keyframes fadeIn {
@@ -116,22 +105,31 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     h2 {
         text-align: center;
-        color: #fff;
-        margin-bottom: 20px;
+        color: #000; /* Başlık Siyah */
+        margin-bottom: 10px;
         font-size: 30px;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
 
-    /* Input stilleri */
+    /* Input stilleri - Login sayfasına uyarlandı */
     textarea.auto-expand, .input-wrapper input, .input-wrapper select {
         width: 100%;
         padding: 14px 14px;
-        border: 1px solid rgba(255,255,255,0.3);
-        background: rgba(255,255,255,0.15); /* Biraz daha şeffaf yaptım ki tema rengi belli olsun */
+        border: 1px solid rgba(255,255,255,0.4);
+        background: rgba(255,255,255,0.4); /* Yazı koyu olduğu için arka plan daha opak beyaz */
         border-radius: 8px;
         font-size: 15px;
-        color: #fff;
+        color: #333; /* Yazı rengi koyu gri/siyah */
         outline: none;
         resize: none;
+        transition: 0.3s;
+        font-weight: 500;
+    }
+
+    textarea.auto-expand:focus, .input-wrapper input:focus, .input-wrapper select:focus {
+        background: rgba(255,255,255,0.6);
+        border-color: #fff;
+        box-shadow: 0 0 10px rgba(255,255,255,0.2);
     }
 
     .input-wrapper {
@@ -139,27 +137,31 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         margin-bottom: 25px;
     }
 
+    /* Label (Placeholder) Rengi - Login'deki gri ton */
     .input-wrapper label {
         position: absolute;
         top: 50%;
         left: 12px;
         transform: translateY(-50%);
-        color: rgba(255,255,255,0.9);   
+        color: #555; /* Daha koyu gri */
         pointer-events: none;
         transition: .2s ease;
+        font-weight: 500;
     }
 
     .input-wrapper input:focus + label,
     .input-wrapper input:not(:placeholder-shown) + label,
     .input-wrapper textarea:focus + label,
     .input-wrapper textarea:not(:placeholder-shown) + label {
-        top: -6px;
+        top: -8px;
         font-size: 12px;
-        color: #fff;
+        color: #333; /* Odaklanınca siyah */
+        font-weight: bold;
+        background: transparent;
     }
 
     .focus-border {
-        position: absolute; bottom: 0; left: 0; height: 2px; width: 0; background: #fff; transition: .3s;
+        position: absolute; bottom: 0; left: 0; height: 2px; width: 0; background: #333; transition: .3s;
     }
     .input-wrapper input:focus ~ .focus-border,
     .input-wrapper textarea:focus ~ .focus-border { width: 100%; }
@@ -167,34 +169,35 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     /* --- KART KUTUSU (Tema buraya uygulanacak) --- */
     .card-box {
         position: relative;
-        /* Varsayılan stil (backdrop-filter korunuyor) */
+        /* Kartın kendisi biraz daha belirgin olsun */
         backdrop-filter: blur(25px);
-        background: rgba(255,255,255,0.05); /* Default */
-        border: 1px solid rgba(255,255,255,0.35);
+        background: rgba(255,255,255,0.3); 
+        border: 1px solid rgba(255,255,255,0.5);
         padding: 60px 22px 22px 22px;
         border-radius: 14px;
         margin-bottom: 18px;
-        transition: background 0.5s ease, border-color 0.5s ease; /* Renk geçişi yumuşak olsun */
+        transition: background 0.5s ease, border-color 0.5s ease;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
     }
 
     .card-number {
         position: absolute; top: 10px; left: 10px;
-        background: rgba(255, 255, 255, 0.2);
-        color: #fff; font-weight: bold; padding: 4px 8px; border-radius: 12px; font-size: 14px;
+        background: rgba(0, 0, 0, 0.1); /* Numara arka planı koyulaştırıldı */
+        color: #333; font-weight: bold; padding: 4px 8px; border-radius: 12px; font-size: 14px;
     }
 
-    /* --- TEMA SEÇİCİ TASARIMI (CSS GÜNCELLEMESİ) --- */
+    /* --- TEMA SEÇİCİ TASARIMI --- */
     .theme-selector-wrapper {
         margin-bottom: 25px;
-        background: rgba(255, 255, 255, 0.15);
+        background: rgba(255, 255, 255, 0.3);
         padding: 15px;
         border-radius: 12px;
-        border: 1px solid rgba(255, 255, 255, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.4);
         text-align: center;
     }
 
     .theme-label {
-        color: #fff; display: block; margin-bottom: 10px; font-weight: 600;
+        color: #222; display: block; margin-bottom: 10px; font-weight: 600;
     }
 
     .theme-options {
@@ -208,7 +211,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         width: 45px; height: 45px;
         border-radius: 50%;
         cursor: pointer;
-        border: 3px solid rgba(255, 255, 255, 0.4); /* Hafif beyaz çerçeve */
+        border: 3px solid rgba(255, 255, 255, 0.6);
         position: relative;
         transition: transform 0.2s, box-shadow 0.2s;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
@@ -216,14 +219,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     .theme-circle:hover { transform: translateY(-3px); }
 
-    /* SEÇİLİ OLDUĞUNDA (Tik İşareti Geliyor) */
     .theme-options input[type="radio"]:checked + .theme-circle {
-        border-color: #fff;
+        border-color: #333; /* Seçilince çerçeve koyu olsun */
         transform: scale(1.15);
-        box-shadow: 0 0 15px rgba(255, 255, 255, 0.5); /* Parlama */
+        box-shadow: 0 0 15px rgba(255, 255, 255, 0.8);
     }
 
-    /* Tik İşareti (Pseudo-element) */
     .theme-options input[type="radio"]:checked + .theme-circle::after {
         content: '✓';
         color: #fff;
@@ -232,32 +233,57 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         position: absolute;
         top: 50%; left: 50%;
         transform: translate(-50%, -50%);
-        text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        text-shadow: 0 1px 2px rgba(0,0,0,0.5);
     }
 
     /* CUSTOM SELECT */
     .custom-select {
         position: relative; z-index: 1000; cursor: pointer;
-        border-radius: 12px; background: rgba(255,255,255,0.15);
-        border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 10px 12px;
+        border-radius: 8px; 
+        background: rgba(255,255,255,0.4); /* Login input style */
+        border: 1px solid rgba(255,255,255,0.4); 
+        color: #333; 
+        padding: 14px 14px;
+        font-weight: 500;
     }
     .custom-select ul.options {
         position: absolute; top: 100%; left: 0; right: 0;
-        background: rgba(255,255,255,0.95); border-radius: 12px;
+        background: rgba(255,255,255,0.95); border-radius: 8px;
         list-style: none; padding: 0; margin: 5px 0 0 0; display: none;
         max-height: 200px; overflow-y: auto; color: #333;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        border: 1px solid rgba(0,0,0,0.1);
     }
     .custom-select ul.options li { padding: 10px; border-bottom: 1px solid #eee; }
-    .custom-select ul.options li:hover { background: #dceefc; }
+    .custom-select ul.options li:hover { background: #f0f0f0; }
 
     /* BUTTONS */
-    .delete-btn { background: #ff4d4d; border: none; padding: 8px 12px; border-radius: 8px; color: white; cursor: pointer; margin-top: 10px; float: right; font-size: 13px;}
-    .add-btn { width: 100%; padding: 12px; margin-top: 10px; border-radius: 8px; border: none; cursor: pointer; font-size: 16px; background: #fff; color:#333; }
-    .create-btn { width: 100%; padding: 12px; margin-top: 10px; border-radius: 8px; border: none; cursor: pointer; font-size: 16px; background:#fff; font-weight:bold; color: #7b68ee; }
-    .cancel-btn { width: 100%; padding: 12px; margin-top: 10px; border-radius: 8px; border: none; cursor: pointer; font-size: 16px; background:#ff4040; color:#fff; }
+    .delete-btn { background: #ff4d4d; border: none; padding: 8px 12px; border-radius: 8px; color: white; cursor: pointer; margin-top: 10px; float: bottom; font-size: 13px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    
+    .add-btn { 
+        width: 100%; padding: 12px; margin-top: 10px; border-radius: 8px; border: none; cursor: pointer; font-size: 16px; 
+        background: #fff; color:#333; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        transition: 0.3s;
+    }
+    .add-btn:hover { background: #f0f0f0; transform: scale(1.01); }
 
-    .success-msg { background: rgba(0,255,150,0.25); border: 1px solid rgba(0,255,150,0.4); color:#003d18; padding: 12px; border-radius: 10px; text-align:center; }
-    .error-msg { background: rgba(255,0,0,0.25); border: 1px solid rgba(255,0,0,0.4); color: #ffcccc; padding: 12px; border-radius: 10px; text-align:center; }
+    .create-btn { 
+        width: 100%; padding: 12px; margin-top: 10px; border-radius: 8px; border: none; cursor: pointer; font-size: 16px; 
+        background: #333; font-weight:bold; color: #fff; /* Siyah buton, beyaz yazı */
+        transition: 0.3s;
+    }
+    .create-btn:hover { background: #000; transform: scale(1.01); }
+
+    .cancel-btn { 
+        width: 100%; padding: 12px; margin-top: 10px; border-radius: 8px; border: none; cursor: pointer; font-size: 16px; 
+        background:#DA3A3A; color:#fff; font-weight: bold;
+    }
+
+    .success-msg { background: rgba(80, 255, 120, 0.2); border: 1px solid #50ff78; color: #006400; padding: 12px; border-radius: 10px; text-align:center; font-weight: bold; }
+    .error-msg { background: rgba(255, 80, 80, 0.2); border: 1px solid #fa3939; color: #8b0000; padding: 12px; border-radius: 10px; text-align:center; font-weight: bold; }
+    
+    h3 { color: #333 !important; } /* Kartlar başlığını zorla siyah yap */
+
 </style>
 </head>
 
@@ -337,7 +363,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             </div>
         </div>
 
-        <h3 style="color:white; text-align:center;">Kartlar</h3>
+        <h3 style="text-align:center;">Kartlar</h3>
 
         <div id="cardsContainer">
             <div class="card-box">
@@ -379,7 +405,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 </div>
 
 <script>
-    // Kategori Seçimi (Değişmedi)
+    // Kategori Seçimi
     const categorySelect = document.getElementById("categorySelect");
     const selected = categorySelect.querySelector(".selected");
     const optionsContainer = categorySelect.querySelector(".options");
@@ -403,22 +429,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     });
 
-    // --- ÖNİZLEME FONKSİYONU (GÜNCELLENDİ) ---
+    // --- ÖNİZLEME FONKSİYONU ---
     function changePreview(element) {
-        // Seçilen temanın CSS class'ını al (örn: bg-sunset)
         const cssClass = element.getAttribute('data-css');
-        
-        // Tüm kart kutularını seç
         const cards = document.querySelectorAll('.card-box');
         
         cards.forEach(card => {
-            // Mevcut "bg-" ile başlayan classları temizle
             card.classList.forEach(cls => {
                 if (cls.startsWith('bg-')) {
                     card.classList.remove(cls);
                 }
             });
-            // Yeni temayı ekle (Bu classlar style.css içinde var)
             card.classList.add(cssClass);
         });
     }
@@ -454,13 +475,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         textarea.addEventListener('input', () => autoExpandTextarea(textarea));
     });
 
-    // --- KART EKLEME (GÜNCELLENDİ) ---
+    // --- KART EKLEME ---
     function addCard() {
         const container = document.getElementById("cardsContainer");
         const box = document.createElement("div");
         box.className = "card-box";
 
-        // Yeni eklenen kartın rengi, o an seçili olan tema olmalı
         const checkedInput = document.querySelector('input[name="set_theme_id"]:checked');
         if(checkedInput) {
              const currentTheme = checkedInput.getAttribute('data-css');
@@ -483,7 +503,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         container.appendChild(box);
         
-        // Silme butonu mantığı
         const delBtn = box.querySelector(".delete-btn");
         delBtn.addEventListener("click", function() {
             box.remove();

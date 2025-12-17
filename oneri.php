@@ -52,12 +52,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <head>
     <meta charset="UTF-8">
     <title>İstek ve Öneri - Mini Sınavım</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
     <style>
         body {
             margin: 0;
             font-family: 'Inter', sans-serif;
-            background: linear-gradient(135deg, #8EC5FC, #E0C3FC);
             min-height: 100vh;
             color: #333;
             padding-bottom: 50px;

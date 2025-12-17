@@ -26,16 +26,6 @@ $cards = [];
 while($row = $res_cards->fetch_assoc()) {
     $cards[] = $row;
 }
-
-// Kart kontrolü (Yazma modu için 1 kart bile yeterlidir)
-if (count($cards) < 1) {
-    echo '<body style="background: linear-gradient(135deg, #8EC5FC, #E0C3FC); font-family: sans-serif; display:flex; justify-content:center; align-items:center; height:100vh; margin:0;">';
-    echo '<div style="background: rgba(255,255,255,0.25); backdrop-filter: blur(15px); padding:40px; border-radius:16px; text-align:center; color:white; box-shadow: 0 8px 32px rgba(0,0,0,0.15);">';
-    echo '<h3>Bu mod için sette kart bulunmalıdır.</h3>';
-    echo '<a href="view_set.php?id='.$set_id.'" style="color:#fff; text-decoration:underline;">Geri Dön</a>';
-    echo '</div></body>';
-    exit;
-}
 ?>
 
 <!DOCTYPE html>
@@ -44,31 +34,40 @@ if (count($cards) < 1) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Yazma Çalışması: <?php echo htmlspecialchars($set['title']); ?></title>
+    <link rel="stylesheet" href="style.css">
+
     <style>
+        /* --- SAYFA DÜZENİ (Menü + Ortalanmış İçerik) --- */
         body {
-            margin: 0;
-            font-family: 'Inter', sans-serif;
-            background: linear-gradient(135deg, #8EC5FC, #E0C3FC);
+            margin: 0; padding: 0;
             min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .main-wrapper {
+            flex: 1;
             display: flex;
             justify-content: center;
             align-items: center;
             padding: 20px;
+            width: 100%;
             box-sizing: border-box;
         }
 
+        /* --- KART TASARIMI --- */
         .quiz-container {
             width: 100%;
-            max-width: 500px;
+            max-width: 600px;
         }
 
         .glass-card {
             backdrop-filter: blur(15px);
-            background: rgba(255, 255, 255, 0.25);
+            background: rgba(255, 255, 255, 0.35); /* Biraz daha opak */
             border-radius: 16px;
-            padding: 35px;
+            padding: 40px;
             box-shadow: 0 8px 32px rgba(0,0,0,0.15);
-            border: 1px solid rgba(255,255,255,0.3);
+            border: 1px solid rgba(255,255,255,0.4);
             position: relative;
             animation: fadeIn 0.6s ease;
         }
@@ -78,216 +77,172 @@ if (count($cards) < 1) {
             to { opacity: 1; transform: translateY(0); }
         }
 
+        /* Kapat Butonu */
         .close-btn {
             position: absolute;
-            top: 15px;
-            right: 15px;
-            background: rgba(255, 255, 255, 0.35);
-            border: 1px solid rgba(255, 255, 255, 0.5);
-            backdrop-filter: blur(5px);
-            width: 32px;
-            height: 32px;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            width: 32px; height: 32px;
             border-radius: 50%;
-            font-size: 18px;
-            color: #fff;
-            cursor: pointer;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            transition: 0.25s ease;
-            text-decoration: none;
+            display: flex; justify-content: center; align-items: center;
+            color: #333; font-size: 16px; text-decoration: none;
+            transition: 0.2s ease;
         }
+        .close-btn:hover { background: #ff7675; color: white; border-color: #ff7675; }
 
-        .close-btn:hover {
-            background: rgba(255, 255, 255, 0.55);
-            transform: scale(1.1);
-        }
-
-        .quiz-header {
-            text-align: center;
-            margin-bottom: 25px;
-            color: #fff;
-        }
-
-        .quiz-header h2 {
-            margin: 0 0 10px 0;
-            font-size: 24px;
-        }
-
+        /* Başlıklar */
+        .quiz-header { text-align: center; margin-bottom: 30px; }
+        .quiz-header h2 { margin: 0 0 5px 0; font-size: 24px; color: #2d3436; }
+        
         .progress-text {
-            color: rgba(255,255,255,0.8);
+            color: #636e72;
             font-size: 14px;
             font-weight: 600;
+            background: rgba(255,255,255,0.5);
+            padding: 4px 12px;
+            border-radius: 20px;
+            display: inline-block;
         }
 
+        /* Soru Alanı */
         .question {
-            font-size: 20px;
-            font-weight: 500;
+            font-size: 22px;
+            font-weight: 600;
             text-align: center;
-            margin-bottom: 25px;
-            color: #fff;
-            min-height: 50px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: rgba(0,0,0,0.1);
-            padding: 15px;
-            border-radius: 12px;
+            margin-bottom: 30px;
+            color: #2d3436;
+            min-height: 60px;
+            display: flex; align-items: center; justify-content: center;
+            /* Soru alanı vurgusu */
+            padding: 20px;
+            border-bottom: 2px solid rgba(0,0,0,0.05);
         }
 
-        /* Input Alanı Stilleri */
-        .input-area {
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
+        /* Input Alanı */
+        .input-area { display: flex; flex-direction: column; gap: 15px; }
 
         .answer-input {
             width: 100%;
             padding: 15px;
-            border-radius: 10px;
-            border: 2px solid rgba(255, 255, 255, 0.5);
-            background: rgba(255, 255, 255, 0.9);
+            border-radius: 12px;
+            border: 2px solid rgba(255, 255, 255, 0.6);
+            background: rgba(255, 255, 255, 0.8);
             color: #333;
             font-size: 18px;
             text-align: center;
             outline: none;
-            box-sizing: border-box;
             transition: 0.3s;
+            box-sizing: border-box;
+            font-family: inherit;
         }
-
         .answer-input:focus {
             background: #fff;
-            box-shadow: 0 0 15px rgba(255,255,255,0.5);
-            transform: scale(1.02);
+            border-color: #6c5ce7;
+            box-shadow: 0 0 0 4px rgba(108, 92, 231, 0.1);
         }
 
         .check-btn {
             padding: 15px;
             border: none;
-            border-radius: 10px;
-            background: #6c5ce7;
+            border-radius: 12px;
+            background: #2d3436; /* Koyu tema butonu */
             color: white;
             font-size: 16px;
             font-weight: bold;
             cursor: pointer;
             transition: 0.3s;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
         }
+        .check-btn:hover { background: #000; transform: translateY(-2px); }
 
-        .check-btn:hover {
-            background: #5b4cc4;
-            transform: translateY(-2px);
-        }
-
-        /* Geri Bildirim Alanı */
+        /* Geri Bildirim */
         .feedback-msg {
-            margin-top: 15px;
+            margin-top: 20px;
             padding: 15px;
-            border-radius: 8px;
+            border-radius: 12px;
             text-align: center;
             font-weight: bold;
-            display: none; /* Başlangıçta gizli */
+            display: none;
             animation: popIn 0.3s ease;
         }
+        @keyframes popIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
-        @keyframes popIn {
-            from { transform: scale(0.9); opacity: 0; }
-            to { transform: scale(1); opacity: 1; }
-        }
+        .feedback-correct { background: #00b894; color: white; }
+        .feedback-wrong { background: #ff7675; color: white; }
 
-        .feedback-correct {
-            background: #2ecc71;
-            color: white;
-            box-shadow: 0 0 15px rgba(46, 204, 113, 0.6);
-        }
+        .correct-answer-text { display: block; font-size: 14px; margin-top: 5px; opacity: 0.9; font-weight: normal; }
 
-        .feedback-wrong {
-            background: #e74c3c;
-            color: white;
-            box-shadow: 0 0 15px rgba(231, 76, 60, 0.6);
-        }
+        /* Sonuç Ekranı */
+        #resultArea { display: none; text-align: center; color: #333; }
+        .result-score { font-size: 48px; font-weight: 800; margin: 20px 0; color: #2d3436; }
+        .action-btn { padding: 12px 24px; border-radius: 8px; border: none; font-size: 16px; font-weight: bold; cursor: pointer; margin: 5px; transition: 0.3s; }
+        .btn-retry { background: #6c5ce7; color: white; }
+        .btn-retry:hover { background: #5a4db8; }
+        .btn-back { background: rgba(0,0,0,0.1); color: #333; }
+        .btn-back:hover { background: rgba(0,0,0,0.2); }
 
-        .correct-answer-text {
-            display: block;
-            font-size: 14px;
-            margin-top: 5px;
-            opacity: 0.9;
-            font-weight: normal;
-        }
-
-        /* Sonuç Alanı */
-        #resultArea {
-            display: none;
-            text-align: center;
-            color: white;
-        }
-
-        .result-score {
-            font-size: 48px;
-            font-weight: bold;
-            margin: 20px 0;
-            text-shadow: 0 2px 10px rgba(0,0,0,0.2);
-        }
-
-        .action-btn {
-            padding: 12px 24px;
-            border-radius: 8px;
-            border: none;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-            margin: 5px;
-            transition: 0.3s;
-        }
-
-        .btn-retry { background: #fff; color: #333; }
-        .btn-retry:hover { background: #f0f0f0; }
-
-        .btn-back { background: rgba(255,255,255,0.3); color: #fff; border: 1px solid rgba(255,255,255,0.5); }
-        .btn-back:hover { background: rgba(255,255,255,0.5); }
+        /* Hata Mesajı (Set boşsa) */
+        .empty-set-msg { text-align: center; color: #444; }
+        .empty-set-msg h3 { margin-bottom: 20px; }
+        .empty-set-msg a { color: #6c5ce7; font-weight: bold; text-decoration: none; }
 
     </style>
 </head>
 <body>
 
-<div class="quiz-container">
-    <div class="glass-card">
+<?php include "menu.php"; ?>
+
+<div class="main-wrapper">
+    <div class="quiz-container">
         
-        <a href="view_set.php?id=<?php echo $set_id; ?>" class="close-btn">✕</a>
+        <?php if (count($cards) < 1): ?>
+            <div class="glass-card empty-set-msg">
+                <h3>⚠️ Bu mod için sette en az 1 kart bulunmalıdır.</h3>
+                <a href="view_set.php?id=<?php echo $set_id; ?>">Sete Geri Dön</a>
+            </div>
+        <?php else: ?>
+            <div class="glass-card">
+                
+                <a href="view_set.php?id=<?php echo $set_id; ?>" class="close-btn" title="Çıkış">✕</a>
 
-        <div id="quizBox">
-            <div class="quiz-header">
-                <h2><?php echo htmlspecialchars($set['title']); ?></h2>
-                <div class="progress-text">
-                    Soru <span id="qIndex">1</span> / <span id="qTotal"><?php echo count($cards); ?></span>
+                <div id="quizBox">
+                    <div class="quiz-header">
+                        <h2><?php echo htmlspecialchars($set['title']); ?></h2>
+                        <div class="progress-text">
+                            Soru <span id="qIndex">1</span> / <span id="qTotal"><?php echo count($cards); ?></span>
+                        </div>
+                    </div>
+
+                    <div class="question" id="questionText">Yükleniyor...</div>
+
+                    <div class="input-area">
+                        <input type="text" id="userAnswer" class="answer-input" placeholder="Anlamını buraya yazın..." autocomplete="off">
+                        <button class="check-btn" id="submitBtn" onclick="checkAnswer()">Kontrol Et</button>
+                    </div>
+
+                    <div id="feedbackBox" class="feedback-msg"></div>
                 </div>
+
+                <div id="resultArea">
+                    <h2>🎉 Çalışma Tamamlandı!</h2>
+                    <div class="result-score">
+                        <span id="scoreVal">0</span> / <?php echo count($cards); ?>
+                    </div>
+                    <p style="color:#666; margin-bottom:30px;">Doğru Yazılan Kelime Sayısı</p>
+                    
+                    <button class="action-btn btn-retry" onclick="location.reload()">Tekrar Dene</button>
+                    <button class="action-btn btn-back" onclick="window.location.href='view_set.php?id=<?php echo $set_id; ?>'">Sete Dön</button>
+                </div>
+
             </div>
-
-            <div class="question" id="questionText">Yükleniyor...</div>
-
-            <div class="input-area">
-                <input type="text" id="userAnswer" class="answer-input" placeholder="Cevabı buraya yazın..." autocomplete="off">
-                <button class="check-btn" id="submitBtn" onclick="checkAnswer()">Kontrol Et</button>
-            </div>
-
-            <div id="feedbackBox" class="feedback-msg"></div>
-        </div>
-
-        <div id="resultArea">
-            <h2>Çalışma Tamamlandı!</h2>
-            <div class="result-score">
-                <span id="scoreVal">0</span> / <?php echo count($cards); ?>
-            </div>
-            <p>Doğru Yazılan Kelime Sayısı</p>
-            <br>
-            <button class="action-btn btn-retry" onclick="location.reload()">Tekrar Dene</button>
-            <button class="action-btn btn-back" onclick="window.location.href='view_set.php?id=<?php echo $set_id; ?>'">Sete Dön</button>
-        </div>
+        <?php endif; ?>
 
     </div>
 </div>
 
+<?php if (count($cards) > 0): ?>
 <script>
     const cards = <?php echo json_encode($cards); ?>;
     let currentQuestion = 0;
@@ -303,6 +258,7 @@ if (count($cards) < 1) {
         return array;
     }
 
+    // Soruları karıştırıyoruz
     let questions = [...cards];
     shuffle(questions);
 
@@ -331,8 +287,8 @@ if (count($cards) < 1) {
         const q = questions[currentQuestion];
         qIndexSpan.textContent = currentQuestion + 1;
         
-        // Ekrana Tanımı (Definition) yazdırıyoruz, kullanıcı Terimi (Term) tahmin edecek.
-        // Eğer tam tersini isterseniz burayı q.term yapın.
+        // Veritabanında Tanım (defination) göster, kullanıcı Terimi (term) bilsin.
+        // Tam tersini istersen: questionText.textContent = q.term;
         questionText.textContent = q.defination;
         
         // Inputu temizle ve odakla
@@ -342,13 +298,13 @@ if (count($cards) < 1) {
         
         // Geri bildirimi gizle
         feedbackBox.style.display = "none";
-        feedbackBox.className = "feedback-msg"; // sınıfları sıfırla
+        feedbackBox.className = "feedback-msg"; 
         submitBtn.disabled = false;
         isWaiting = false;
     }
 
     function checkAnswer() {
-        if (isWaiting) return; // Zaten cevap gösteriliyorsa bekle
+        if (isWaiting) return; 
         if (answerInput.value.trim() === "") return; // Boşsa işlem yapma
 
         isWaiting = true;
@@ -356,19 +312,21 @@ if (count($cards) < 1) {
         submitBtn.disabled = true;
 
         const q = questions[currentQuestion];
-        const userVal = answerInput.value.trim().toLowerCase();
-        const correctVal = q.term.trim().toLowerCase();
+        
+        // DÜZELTME: Türkçe karakter uyumlu küçük harfe çevirme
+        const userVal = answerInput.value.trim().toLocaleLowerCase('tr-TR');
+        const correctVal = q.term.trim().toLocaleLowerCase('tr-TR');
 
         feedbackBox.style.display = "block";
 
         if (userVal === correctVal) {
             // Doğru
             score++;
-            feedbackBox.innerHTML = "Doğru! 🎉";
+            feedbackBox.innerHTML = '<i class="fa-solid fa-check"></i> Doğru!';
             feedbackBox.classList.add("feedback-correct");
         } else {
             // Yanlış
-            feedbackBox.innerHTML = `Yanlış! <span class="correct-answer-text">Doğru cevap: <strong>${q.term}</strong></span>`;
+            feedbackBox.innerHTML = `<i class="fa-solid fa-xmark"></i> Yanlış! <span class="correct-answer-text">Doğru cevap: <strong>${q.term}</strong></span>`;
             feedbackBox.classList.add("feedback-wrong");
         }
 
@@ -388,6 +346,7 @@ if (count($cards) < 1) {
     // Başlat
     loadQuestion();
 </script>
+<?php endif; ?>
 
 </body>
 </html>

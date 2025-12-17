@@ -10,15 +10,21 @@ if (!isset($_GET['id'])) {
 $set_id = intval($_GET['id']);
 $current_user_id = isset($_SESSION['user_id']) ? $_SESSION['user_id'] : 0;
 
-// --- 1. PUANLAMA İŞLEMİ (YENİ EKLENDİ) ---
+// --- 1. PUANLAMA İŞLEMİ (DÜZELTİLDİ: TARİH GÜNCELLEME EKLENDİ) ---
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['submit_rating']) && $current_user_id > 0) {
     $puan = intval($_POST['rating']);
     if ($puan >= 1 && $puan <= 5) {
-        // Puanı kaydet veya güncelle
-        $stmt_rate = $conn->prepare("INSERT INTO set_ratings (set_id, user_id, rating) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE rating = VALUES(rating)");
+        
+        // DÜZELTME BURADA:
+        // Eğer kullanıcı daha önce oy verdiyse hem 'rating' hem de 'created_at' güncelleniyor.
+        $stmt_rate = $conn->prepare("INSERT INTO set_ratings (set_id, user_id, rating, created_at) VALUES (?, ?, ?, NOW()) 
+                                     ON DUPLICATE KEY UPDATE rating = VALUES(rating), created_at = NOW()");
+        
+        // Parametre sayısı değişmedi (set_id, user_id, rating) -> "iii"
         $stmt_rate->bind_param("iii", $set_id, $current_user_id, $puan);
+        
         $stmt_rate->execute();
-        header("Location: view_set.php?id=$set_id"); // Sayfayı yenile
+        header("Location: view_set.php?id=$set_id"); 
         exit;
     }
 }
@@ -40,18 +46,15 @@ if ($result_set->num_rows == 0) {
 }
 
 $set = $result_set->fetch_assoc();
-
-// Tema yoksa varsayılan
 $theme_class = !empty($set['css_class']) ? $set['css_class'] : 'bg-default';
 
-// --- 3. PUAN BİLGİLERİNİ ÇEK (YENİ EKLENDİ) ---
-// A. Ortalama Puan
+// --- 3. PUAN BİLGİLERİNİ ÇEK ---
 $sql_avg = "SELECT AVG(rating) as avg_score, COUNT(*) as total_votes FROM set_ratings WHERE set_id = $set_id";
 $rating_data = $conn->query($sql_avg)->fetch_assoc();
 $avg_score = round($rating_data['avg_score'], 1); // Örn: 4.5
 $total_votes = $rating_data['total_votes'];
 
-// B. Kullanıcının Kendi Puanı
+// Kullanıcının kendi puanı
 $my_rating = 0;
 if ($current_user_id > 0) {
     $sql_mine = "SELECT rating FROM set_ratings WHERE set_id = $set_id AND user_id = $current_user_id";
@@ -67,12 +70,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['submit_comment']) && $
     if (!empty($comment_text)) {
         $stmt_com = $conn->prepare("INSERT INTO comments (set_id, user_id, comment_text) VALUES (?, ?, ?)");
         $stmt_com->bind_param("iis", $set_id, $current_user_id, $comment_text);
-        if ($stmt_com->execute()) {
-            header("Location: view_set.php?id=$set_id");
-            exit;
-        } else {
-            echo "<script>alert('Yorum gönderilirken hata oluştu.');</script>";
-        }
+        $stmt_com->execute();
+        header("Location: view_set.php?id=$set_id");
+        exit;
     }
 }
 
@@ -119,7 +119,6 @@ while($row = $result_cards->fetch_assoc()) {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
     <style>
-        /* Genel Konteyner */
         .view-wrapper {
             width: 90%; max-width: 900px; margin: 40px auto; padding: 30px;
             backdrop-filter: blur(15px); background: rgba(255, 255, 255, 0.4);
@@ -128,85 +127,137 @@ while($row = $result_cards->fetch_assoc()) {
             box-sizing: border-box; 
         }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-        .view-wrapper h1 { margin-bottom: 10px; text-align: center; word-wrap: break-word; }
-        .view-wrapper p { color: #555; text-align: center; margin-bottom: 20px; word-wrap: break-word; }
+        .view-wrapper h1 { margin-bottom: 10px; text-align: center; color: #333; }
+        .view-wrapper p { color: #555; text-align: center; margin-bottom: 20px; }
 
-        /* --- YILDIZ PUANLAMA STİLLERİ (YENİ) --- */
-        .rating-wrapper {
-            text-align: center;
-            margin: 10px 0 20px 0;
-            padding: 10px;
-            background: rgba(255,255,255,0.3);
-            border-radius: 12px;
-            display: inline-block;
+        /* --- YENİ PUANLAMA KUTUSU --- */
+        .rating-box {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #fff;
+            padding: 10px 25px;
+            border-radius: 50px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            margin: 0 auto 25px auto;
+            width: fit-content;
+            gap: 15px;
         }
+
+        .rating-score {
+            font-size: 28px;
+            font-weight: 800;
+            color: #2d3436;
+            line-height: 1;
+        }
+        
+        .rating-score small {
+            font-size: 12px;
+            color: #b2bec3;
+            font-weight: normal;
+            display: block;
+            text-align: center;
+            margin-top: 2px;
+        }
+
+        .divider {
+            width: 1px;
+            height: 30px;
+            background: #dfe6e9;
+        }
+
+        /* Yıldız Sistemi */
         .star-rating {
-            direction: rtl; /* Sağdan sola seçim */
+            direction: rtl;
             display: inline-flex;
-            font-size: 25px;
+            font-size: 22px;
+            position: relative;
         }
         .star-rating input { display: none; }
-        .star-rating label { color: #ccc; cursor: pointer; transition: color 0.2s; padding: 0 2px; }
-        
-        /* Hover ve Checked Durumu */
-        .star-rating input:checked ~ label,
-        .star-rating label:hover,
-        .star-rating label:hover ~ label {
-            color: #f1c40f; /* Altın Sarısı */
+        .star-rating label { color: #dcdcdc; cursor: pointer; transition: color 0.2s; padding: 0 2px; }
+
+        /* Giriş Yapmış Kullanıcı İçin Hover Efekti */
+        .star-rating:not(.disabled) input:checked ~ label,
+        .star-rating:not(.disabled) label:hover,
+        .star-rating:not(.disabled) label:hover ~ label {
+            color: #f1c40f;
         }
 
-        .avg-score { font-size: 14px; color: #555; margin-top: 5px; font-weight: bold; }
-        .vote-btn { 
-            display: block; margin: 5px auto 0 auto; padding: 4px 12px; 
-            background: #333; color: #fff; border: none; border-radius: 15px; 
-            cursor: pointer; font-size: 12px; transition: 0.2s;
+        /* Sadece görüntüleme (Seçili olanı sarı yap ama hover çalışmaşın) */
+        .star-rating.disabled input:checked ~ label {
+            color: #f1c40f; 
         }
-        .vote-btn:hover { background: #555; }
+        .star-rating.disabled label {
+            cursor: default; /* Tıklanamaz imleci */
+        }
 
-        /* --- AKSİYON KONTEYNERİ --- */
-        .action-container {
-            display: flex; flex-direction: column; gap: 20px; 
-            margin-top: 25px; padding-top: 20px; 
-            border-top: 1px solid rgba(255,255,255,0.3);
+        /* Tooltip (Giriş Yapmayanlar İçin) */
+        .tooltip-wrapper {
+            position: relative;
+            display: inline-block;
         }
+        .tooltip-wrapper:hover .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+            bottom: 110%;
+        }
+        .tooltip-text {
+            visibility: hidden;
+            width: 160px;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 5px 0;
+            position: absolute;
+            z-index: 1;
+            bottom: 120%;
+            left: 50%;
+            margin-left: -80px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 12px;
+        }
+        .tooltip-text::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: #333 transparent transparent transparent;
+        }
+
+        .btn-rate-submit {
+            background: #2d3436; color: #fff; border: none; 
+            padding: 5px 12px; border-radius: 12px; cursor: pointer; font-size: 12px;
+            margin-left: 10px; transition: 0.2s;
+        }
+        .btn-rate-submit:hover { background: #000; }
+
+        /* Aksiyon ve Kart Alanı */
+        .action-container { display: flex; flex-direction: column; gap: 20px; margin-top: 25px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.3); }
         .study-actions { display: flex; justify-content: center; gap: 20px; width: 100%; }
-        .btn-hero {
-            flex: 1; max-width: 250px; padding: 15px 20px; border-radius: 16px;
-            font-size: 16px; font-weight: 700; text-decoration: none; color: #fff;
-            display: flex; align-items: center; justify-content: center; gap: 10px;
-            transition: transform 0.2s, box-shadow 0.2s; box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-            border: 1px solid rgba(255,255,255,0.2);
-        }
+        .btn-hero { flex: 1; max-width: 250px; padding: 15px 20px; border-radius: 16px; font-size: 16px; font-weight: 700; text-decoration: none; color: #fff; display: flex; align-items: center; justify-content: center; gap: 10px; transition: transform 0.2s, box-shadow 0.2s; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border: 1px solid rgba(255,255,255,0.2); }
         .btn-hero:hover { transform: translateY(-4px); box-shadow: 0 8px 25px rgba(0,0,0,0.2); }
         .hero-write { background: linear-gradient(135deg, #6c5ce7, #a29bfe); }
-        .hero-quiz  { background: linear-gradient(135deg, #00b894, #55efc4); }
-
+        .hero-quiz { background: linear-gradient(135deg, #00b894, #55efc4); }
         .admin-actions { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
-        .btn-small {
-            padding: 8px 14px; border-radius: 10px; font-size: 13px; font-weight: 600;
-            text-decoration: none; display: flex; align-items: center; gap: 6px;
-            transition: 0.2s; background: rgba(255, 255, 255, 0.2);
-            border: 1px solid rgba(255, 255, 255, 0.4); color: #444;
-        }
+        .btn-small { padding: 8px 14px; border-radius: 10px; font-size: 13px; font-weight: 600; text-decoration: none; display: flex; align-items: center; gap: 6px; transition: 0.2s; background: rgba(255, 255, 255, 0.2); border: 1px solid rgba(255, 255, 255, 0.4); color: #444; }
         .btn-small:hover { background: rgba(255, 255, 255, 0.6); transform: translateY(-2px); }
         .btn-small.delete:hover { background: #ff7675; color: white; border-color: #ff7675; }
-        .btn-small.edit:hover   { background: #74b9ff; color: white; border-color: #74b9ff; }
+        .btn-small.edit:hover { background: #74b9ff; color: white; border-color: #74b9ff; }
         .btn-small.folder:hover { background: #ffeaa7; color: #333; border-color: #ffeaa7; }
 
-        /* --- FLASHCARD ALANI --- */
+        /* Flashcard */
         .flashcard-container { display: flex; justify-content: center; align-items: center; perspective: 1000px; margin: 40px 0; }
         .flashcard { width: 100%; max-width: 600px; height: 350px; position: relative; transform-style: preserve-3d; transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1); cursor: pointer; }
         .flashcard.flipped { transform: rotateY(180deg); }
         .flashcard-face { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; -webkit-backface-visibility: hidden; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 24px; font-weight: 600; padding: 30px; box-sizing: border-box; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.15); overflow-y: auto; word-wrap: break-word; }
-        
-        .flashcard-front {
-            background: rgba(255, 255, 255, 0.95); color: #2c3e50; z-index: 2;
-            border: 2px solid rgba(255, 255, 255, 0.5); display: flex; flex-direction: column; 
-            justify-content: center; align-items: center;
-        }
+        .flashcard-front { background: rgba(255, 255, 255, 0.95); color: #2c3e50; z-index: 2; border: 2px solid rgba(255, 255, 255, 0.5); display: flex; flex-direction: column; justify-content: center; align-items: center; }
         .flip-hint { position: absolute; bottom: 15px; right: 20px; font-size: 13px; color: #95a5a6; font-weight: normal; opacity: 0.8; pointer-events: none; }
         .flashcard:hover .flashcard-front { background: #fff; border-color: #fff; }
-
         .flashcard-back { background-color: #2c3e50; color: #fff; transform: rotateY(180deg); text-shadow: 0 1px 2px rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.2); }
         .controls { display: flex; justify-content: center; align-items: center; gap: 15px; margin-bottom: 40px; }
         .controls button { padding: 12px 24px; font-size: 16px; cursor: pointer; background-color: #333; color: white; border: none; border-radius: 8px; transition: background 0.2s; }
@@ -239,39 +290,45 @@ while($row = $result_cards->fetch_assoc()) {
             <small>Kategori: <?php echo htmlspecialchars($set['category']); ?> | Oluşturan: <b><?php echo htmlspecialchars($set['username']); ?></b></small>
             
             <br><br>
-            <div class="rating-wrapper">
-                <form method="POST">
-                    <div class="star-rating">
-                        <input type="radio" name="rating" id="star5" value="5" <?php if($my_rating == 5) echo 'checked'; ?>>
-                        <label for="star5" class="fa fa-star"></label>
 
-                        <input type="radio" name="rating" id="star4" value="4" <?php if($my_rating == 4) echo 'checked'; ?>>
-                        <label for="star4" class="fa fa-star"></label>
+            <div class="rating-box">
+                <div class="rating-score">
+                    <?php echo $avg_score > 0 ? $avg_score : "0.0"; ?>
+                    <small><?php echo $total_votes; ?> oy</small>
+                </div>
 
-                        <input type="radio" name="rating" id="star3" value="3" <?php if($my_rating == 3) echo 'checked'; ?>>
-                        <label for="star3" class="fa fa-star"></label>
+                <div class="divider"></div>
 
-                        <input type="radio" name="rating" id="star2" value="2" <?php if($my_rating == 2) echo 'checked'; ?>>
-                        <label for="star2" class="fa fa-star"></label>
-
-                        <input type="radio" name="rating" id="star1" value="1" <?php if($my_rating == 1) echo 'checked'; ?>>
-                        <label for="star1" class="fa fa-star"></label>
-                    </div>
-                    
-                    <div class="avg-score">
-                        Ortalama: <?php echo $avg_score > 0 ? $avg_score : "0"; ?> 
-                        <span style="font-weight:normal; font-size:12px;">(<?php echo $total_votes; ?> oy)</span>
-                    </div>
-
-                    <?php if($current_user_id > 0): ?>
-                        <button type="submit" name="submit_rating" class="vote-btn">Puanla</button>
-                    <?php else: ?>
-                        <div style="font-size:11px; color:#666; margin-top:5px;">Puanlamak için giriş yap.</div>
+                <div class="tooltip-wrapper">
+                    <?php if ($current_user_id == 0): ?>
+                        <span class="tooltip-text">Puanlamak için giriş yapın</span>
                     <?php endif; ?>
-                </form>
+
+                    <form method="POST" style="display:flex; align-items:center;">
+                        <div class="star-rating <?php echo $current_user_id == 0 ? 'disabled' : ''; ?>">
+                            <input type="radio" name="rating" id="star5" value="5" <?php echo ($my_rating == 5) ? 'checked' : ''; ?> <?php echo ($current_user_id == 0) ? 'disabled' : ''; ?>>
+                            <label for="star5" class="fa fa-star"></label>
+
+                            <input type="radio" name="rating" id="star4" value="4" <?php echo ($my_rating == 4) ? 'checked' : ''; ?> <?php echo ($current_user_id == 0) ? 'disabled' : ''; ?>>
+                            <label for="star4" class="fa fa-star"></label>
+
+                            <input type="radio" name="rating" id="star3" value="3" <?php echo ($my_rating == 3) ? 'checked' : ''; ?> <?php echo ($current_user_id == 0) ? 'disabled' : ''; ?>>
+                            <label for="star3" class="fa fa-star"></label>
+
+                            <input type="radio" name="rating" id="star2" value="2" <?php echo ($my_rating == 2) ? 'checked' : ''; ?> <?php echo ($current_user_id == 0) ? 'disabled' : ''; ?>>
+                            <label for="star2" class="fa fa-star"></label>
+
+                            <input type="radio" name="rating" id="star1" value="1" <?php echo ($my_rating == 1) ? 'checked' : ''; ?> <?php echo ($current_user_id == 0) ? 'disabled' : ''; ?>>
+                            <label for="star1" class="fa fa-star"></label>
+                        </div>
+                        
+                        <?php if($current_user_id > 0): ?>
+                            <button type="submit" name="submit_rating" class="btn-rate-submit">Kaydet</button>
+                        <?php endif; ?>
+                    </form>
+                </div>
             </div>
             <div class="action-container">
-                
                 <div class="study-actions">
                     <a href="write_mode.php?id=<?php echo $set_id; ?>" class="btn-hero hero-write">
                         ✍️ Yazma Modu
@@ -284,23 +341,20 @@ while($row = $result_cards->fetch_assoc()) {
 
                 <?php if ($current_user_id > 0): ?>
                     <div class="admin-actions">
-                        
                         <a href="select_folder.php?set_id=<?php echo $set_id; ?>" class="btn-small folder">
                             📁 Klasöre Ekle
                         </a>
 
                         <?php if ($set['owner_id'] == $current_user_id): ?>
-                            <a href="edit_set.php?id=<?php echo $set_id; ?>" class="btn-small edit">
+                            <a href="edit_set.php?set_id=<?php echo $set_id; ?>" class="btn-small edit">
                                 ✏️ Düzenle
                             </a>
                             <a href="delete_set.php?id=<?php echo $set_id; ?>" onclick="return confirm('Bu seti silmek istediğine emin misin?');" class="btn-small delete">
                                 🗑️ Sil
                             </a>
                         <?php endif; ?>
-                        
                     </div>
                 <?php endif; ?>
-
             </div>            
         </div>
     </div>
@@ -308,12 +362,10 @@ while($row = $result_cards->fetch_assoc()) {
     <?php if (count($cards) > 0): ?>
         <div class="flashcard-container" onclick="flipCard()">
             <div class="flashcard" id="flashcard">
-                
                 <div class="flashcard-face flashcard-front">
                     <span id="cardFrontText"></span>
                     <div class="flip-hint">⟳ Çevir</div>
                 </div>
-                
                 <div class="flashcard-face flashcard-back <?php echo $theme_class; ?>" id="cardBack"></div>
             </div>
         </div>
@@ -384,48 +436,25 @@ while($row = $result_cards->fetch_assoc()) {
 </div> 
 
 <script>
-    // JS HATALARI DÜZELTİLDİ
     const cards = <?php echo json_encode($cards); ?>;
-    
-    // Metin öğelerini alıyoruz
     const frontText = document.getElementById("cardFrontText");
     const flashcard = document.getElementById("flashcard");
     const back = document.getElementById("cardBack");
     const counter = document.getElementById("cardCounter");
-    
     let currentIndex = 0;
 
     function updateCard() {
         if (cards.length === 0) return;
-        
         flashcard.classList.remove("flipped");
-        
         setTimeout(() => {
-            // Sadece metin içeriğini güncelliyoruz, Çevir yazısı sabit kalıyor
             frontText.textContent = cards[currentIndex].term;
             back.textContent = cards[currentIndex].defination;
             counter.textContent = (currentIndex + 1) + " / " + cards.length;
         }, 150);
     }
-
-    function flipCard() {
-        flashcard.classList.toggle("flipped");
-    }
-
-    function nextCard() {
-        if (currentIndex < cards.length - 1) {
-            currentIndex++;
-            updateCard();
-        }
-    }
-
-    function prevCard() {
-        if (currentIndex > 0) {
-            currentIndex--;
-            updateCard();
-        }
-    }
-
+    function flipCard() { flashcard.classList.toggle("flipped"); }
+    function nextCard() { if (currentIndex < cards.length - 1) { currentIndex++; updateCard(); } }
+    function prevCard() { if (currentIndex > 0) { currentIndex--; updateCard(); } }
     updateCard();
 </script>
 

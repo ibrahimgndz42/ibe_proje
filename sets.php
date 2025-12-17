@@ -6,6 +6,7 @@ include "menu.php";
 $category_filter = isset($_GET['category']) ? $_GET['category'] : '';
 $search_query = isset($_GET['q']) ? trim($_GET['q']) : '';
 
+// --- DEĞİŞİKLİK 1: SQL Sorgusuna Puan Hesaplama Eklendi ---
 $sql = "SELECT 
             sets.set_id, 
             sets.title, 
@@ -13,7 +14,8 @@ $sql = "SELECT
             categories.name AS category,
             sets.created_at, 
             users.username,
-            (SELECT COUNT(*) FROM cards WHERE cards.set_id = sets.set_id) AS card_count
+            (SELECT COUNT(*) FROM cards WHERE cards.set_id = sets.set_id) AS card_count,
+            (SELECT AVG(rating) FROM set_ratings WHERE set_ratings.set_id = sets.set_id) AS avg_rating
         FROM sets
         JOIN users ON sets.user_id = users.user_id
         JOIN categories ON sets.category_id = categories.category_id";
@@ -45,220 +47,84 @@ $result = $conn->query($sql);
     <meta charset="UTF-8">
     <title>Tüm Setler - Mini Sınavım</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         /* TEMEL AYARLAR */
-        * {
-            box-sizing: border-box;
-        }
-
-        html {
-            overflow-y: scroll; /* Kaydırma çubuğu alanını rezerve et */
-        }
-
+        * { box-sizing: border-box; }
+        html { overflow-y: scroll; }
 
         /* İÇERİK KONTEYNERİ */
         .container {
-            width: 100%;
-            max-width: 1200px;
-            margin: 20px auto; /* DÜZELTME: auto ile ortaladık */
-            padding: 0 20px 40px 20px; /* Kenar boşlukları */
+            width: 100%; max-width: 1200px; margin: 20px auto; padding: 0 20px 40px 20px;
         }
 
-        /* CAM PANEL (HERO ALANI) */
+        /* CAM PANEL */
         .glass-hero {
-            backdrop-filter: blur(15px);
-            background: rgba(255, 255, 255, 0.25);
-            border-radius: 20px;
-            padding: 40px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-            border: 1px solid rgba(255,255,255,0.3);
-            text-align: center;
-            margin-bottom: 40px;
+            backdrop-filter: blur(15px); background: rgba(255, 255, 255, 0.25);
+            border-radius: 20px; padding: 40px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1); border: 1px solid rgba(255,255,255,0.3);
+            text-align: center; margin-bottom: 40px;
         }
-
-
-        .glass-hero h1 {
-            font-size: 36px;
-            font-weight: 800;
-            color: #fff;
-            margin: 0 0 10px 0;
-            text-shadow: 0 2px 5px rgba(0,0,0,0.15);
-        }
-
-        .glass-hero p {
-            font-size: 16px;
-            color: rgba(255, 255, 255, 0.9);
-            margin: 0 0 30px 0;
-        }
+        .glass-hero h1 { font-size: 36px; font-weight: 800; color: #fff; margin: 0 0 10px 0; text-shadow: 0 2px 5px rgba(0,0,0,0.15); }
+        .glass-hero p { font-size: 16px; color: rgba(255, 255, 255, 0.9); margin: 0 0 30px 0; }
 
         /* ARAMA FORMU */
-        .search-form {
-            display: flex;
-            justify-content: center;
-            gap: 10px;
-            margin-bottom: 30px;
-            flex-wrap: wrap;
-        }
-
-        .search-input {
-            padding: 12px 20px;
-            width: 100%;
-            max-width: 400px;
-            border-radius: 30px;
-            border: 1px solid rgba(255,255,255,0.5);
-            background: rgba(255,255,255,0.6);
-            font-size: 16px;
-            outline: none;
-            color: #333;
-            transition: 0.3s;
-        }
-
-        .search-input:focus {
-            background: #fff;
-            box-shadow: 0 0 0 4px rgba(255,255,255,0.3);
-        }
-
-        .search-btn {
-            padding: 12px 25px;
-            border-radius: 30px;
-            border: none;
-            background: #6A5ACD;
-            color: white;
-            font-weight: bold;
-            cursor: pointer;
-            font-size: 16px;
-            box-shadow: 0 4px 10px rgba(106, 90, 205, 0.3);
-            transition: 0.3s;
-        }
-
-        .search-btn:hover {
-            background: #5a4db8;
-            transform: translateY(-2px);
-        }
-
-        .clear-btn {
-            padding: 12px 20px;
-            border-radius: 30px;
-            background: rgba(255,255,255,0.5);
-            text-decoration: none;
-            color: #333;
-            font-weight: bold;
-            display: flex;
-            align-items: center;
-            transition: 0.3s;
-        }
-        .clear-btn:hover {
-            background: rgba(255,255,255,0.8);
-        }
+        .search-form { display: flex; justify-content: center; gap: 10px; margin-bottom: 30px; flex-wrap: wrap; }
+        .search-input { padding: 12px 20px; width: 100%; max-width: 400px; border-radius: 30px; border: 1px solid rgba(255,255,255,0.5); background: rgba(255,255,255,0.6); font-size: 16px; outline: none; color: #333; transition: 0.3s; }
+        .search-input:focus { background: #fff; box-shadow: 0 0 0 4px rgba(255,255,255,0.3); }
+        .search-btn { padding: 12px 25px; border-radius: 30px; border: none; background: #6A5ACD; color: white; font-weight: bold; cursor: pointer; font-size: 16px; box-shadow: 0 4px 10px rgba(106, 90, 205, 0.3); transition: 0.3s; }
+        .search-btn:hover { background: #5a4db8; transform: translateY(-2px); }
+        .clear-btn { padding: 12px 20px; border-radius: 30px; background: rgba(255,255,255,0.5); text-decoration: none; color: #333; font-weight: bold; display: flex; align-items: center; transition: 0.3s; }
+        .clear-btn:hover { background: rgba(255,255,255,0.8); }
 
         /* KATEGORİ MENÜSÜ */
-        .category-menu {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: 10px;
-        }
-
-        .category-btn {
-            padding: 8px 18px;
-            background: rgba(255, 255, 255, 0.4);
-            border-radius: 20px;
-            text-decoration: none;
-            color: #333;
-            font-size: 14px;
-            font-weight: 500;
-            border: 1px solid rgba(255,255,255,0.4);
-            transition: all 0.2s;
-        }
-
-        .category-btn:hover {
-            background: #fff;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        }
-
-        .category-active {
-            background: #6A5ACD !important;
-            color: #fff !important;
-            border-color: #6A5ACD !important;
-            font-weight: 700;
-            box-shadow: 0 4px 10px rgba(106, 90, 205, 0.4);
-        }
+        .category-menu { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+        .category-btn { padding: 8px 18px; background: rgba(255, 255, 255, 0.4); border-radius: 20px; text-decoration: none; color: #333; font-size: 14px; font-weight: 500; border: 1px solid rgba(255,255,255,0.4); transition: all 0.2s; }
+        .category-btn:hover { background: #fff; transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .category-active { background: #6A5ACD !important; color: #fff !important; border-color: #6A5ACD !important; font-weight: 700; box-shadow: 0 4px 10px rgba(106, 90, 205, 0.4); }
 
         /* SET LİSTESİ (GRID) */
-        .sets-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 20px;
-        }
-
-        /* SET KARTI */
+        .sets-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
         .set-card {
-            background: rgba(255, 255, 255, 0.65);
-            border-radius: 16px;
-            padding: 20px;
-            border: 1px solid rgba(255,255,255,0.5);
-            text-decoration: none;
-            color: #333;
-            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.65); border-radius: 16px; padding: 20px;
+            border: 1px solid rgba(255,255,255,0.5); text-decoration: none; color: #333;
+            transition: all 0.3s ease; display: flex; flex-direction: column;
+            min-height: 160px; position: relative;
+        }
+        .set-card:hover { transform: translateY(-5px); background: rgba(255, 255, 255, 0.95); box-shadow: 0 10px 25px rgba(0,0,0,0.15); }
+        .card-title { font-size: 18px; font-weight: 700; color: #2c3e50; margin: 0 0 10px 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+        /* --- DEĞİŞİKLİK 2: İstatistik Satırı (Term + Puan) --- */
+        .stats-row {
             display: flex;
-            flex-direction: column;
-            min-height: 160px;
-            position: relative;
-        }
-
-        .set-card:hover {
-            transform: translateY(-5px);
-            background: rgba(255, 255, 255, 0.95);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
-        }
-
-        .card-title {
-            font-size: 18px;
-            font-weight: 700;
-            color: #2c3e50;
-            margin: 0 0 10px 0;
-            /* Uzun başlıkları kırp */
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-        }
-
-        .term-badge {
-            align-self: flex-start;
-            background: #6A5ACD;
-            padding: 4px 10px;
-            color: white;
-            font-size: 12px;
-            border-radius: 8px;
-            font-weight: 600;
+            align-items: center;
+            gap: 10px;
             margin-bottom: 15px;
         }
 
-        .meta-row {
-            margin-top: auto; /* En alta it */
-            display: flex;
-            justify-content: space-between;
-            font-size: 12px;
-            color: #666;
-            border-top: 1px solid rgba(0,0,0,0.05);
-            padding-top: 10px;
+        .term-badge {
+            background: #6A5ACD; padding: 4px 10px; color: white;
+            font-size: 12px; border-radius: 8px; font-weight: 600;
         }
 
+        .rating-badge {
+            background: #fff3cd; /* Açık sarı */
+            color: #856404;      /* Koyu hardal sarısı */
+            padding: 4px 8px;
+            font-size: 12px;
+            border-radius: 8px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            border: 1px solid #ffeeba;
+        }
+        .rating-badge i { font-size: 11px; }
+
+        .meta-row { margin-top: auto; display: flex; justify-content: space-between; font-size: 12px; color: #666; border-top: 1px solid rgba(0,0,0,0.05); padding-top: 10px; }
         .creator { font-weight: 600; color: #444; }
         .date { opacity: 0.8; }
-
-        .empty-msg {
-            grid-column: 1 / -1;
-            text-align: center;
-            padding: 40px;
-            color: rgba(255,255,255,0.8);
-            font-size: 18px;
-            background: rgba(255,255,255,0.1);
-            border-radius: 16px;
-            border: 1px dashed rgba(255,255,255,0.3);
-        }
+        .empty-msg { grid-column: 1 / -1; text-align: center; padding: 40px; color: rgba(255,255,255,0.8); font-size: 18px; background: rgba(255,255,255,0.1); border-radius: 16px; border: 1px dashed rgba(255,255,255,0.3); }
 
     </style>
 </head>
@@ -303,12 +169,25 @@ $result = $conn->query($sql);
             <?php if ($result->num_rows > 0): ?>
                 <?php while($row = $result->fetch_assoc()): ?>
                     
+                    <?php 
+                        // Puanı formatla (örn: 4.5)
+                        $rating = $row['avg_rating'] ? round($row['avg_rating'], 1) : 0;
+                    ?>
+
                     <a href="view_set.php?id=<?php echo $row['set_id']; ?>" class="set-card">
                         
                         <h3 class="card-title"><?php echo htmlspecialchars($row['title']); ?></h3>
 
-                        <div class="term-badge">
-                            <?php echo $row['card_count']; ?> terim
+                        <div class="stats-row">
+                            <div class="term-badge">
+                                <?php echo $row['card_count']; ?> terim
+                            </div>
+                            
+                            <?php if($rating > 0): ?>
+                                <div class="rating-badge">
+                                    <i class="fa-solid fa-star"></i> <?php echo $rating; ?>
+                                </div>
+                            <?php endif; ?>
                         </div>
 
                         <div class="meta-row">
