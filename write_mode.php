@@ -2,12 +2,12 @@
 include "session_check.php";
 include "connectDB.php";
 
-if (!isset($_GET['id'])) {
+if (!isset($_GET['set_id'])) {
     echo "ID gerekli.";
     exit;
 }
 
-$set_id = intval($_GET['id']);
+$set_id = intval($_GET['set_id']);
 
 // Set bilgisi
 $sql_set = "SELECT title FROM sets WHERE set_id = $set_id";
@@ -200,12 +200,12 @@ while($row = $res_cards->fetch_assoc()) {
         <?php if (count($cards) < 1): ?>
             <div class="glass-card empty-set-msg">
                 <h3>⚠️ Bu mod için sette en az 1 kart bulunmalıdır.</h3>
-                <a href="view_set.php?id=<?php echo $set_id; ?>">Sete Geri Dön</a>
+                <a href="view_set.php?set_id=<?php echo $set_id; ?>">Sete Geri Dön</a>
             </div>
         <?php else: ?>
             <div class="glass-card">
                 
-                <a href="view_set.php?id=<?php echo $set_id; ?>" class="close-btn" title="Çıkış">✕</a>
+                <a href="view_set.php?set_id=<?php echo $set_id; ?>" class="close-btn" title="Çıkış">✕</a>
 
                 <div id="quizBox">
                     <div class="quiz-header">
@@ -233,7 +233,7 @@ while($row = $res_cards->fetch_assoc()) {
                     <p style="color:#666; margin-bottom:30px;">Doğru Yazılan Kelime Sayısı</p>
                     
                     <button class="action-btn btn-retry" onclick="location.reload()">Tekrar Dene</button>
-                    <button class="action-btn btn-back" onclick="window.location.href='view_set.php?id=<?php echo $set_id; ?>'">Sete Dön</button>
+                    <button class="action-btn btn-back" onclick="window.location.href='view_set.php?set_id=<?php echo $set_id; ?>'">Sete Dön</button>
                 </div>
 
             </div>
