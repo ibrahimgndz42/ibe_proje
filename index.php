@@ -7,6 +7,7 @@ include "connectDB.php";
 include "menu.php";
 
 $is_logged_in = isset($_SESSION['user_id']);
+$is_admin = false; // Varsayılan olarak admin değil
 $my_sets = [];
 $my_folders = [];
 
@@ -14,11 +15,21 @@ $my_folders = [];
 if ($is_logged_in) {
     $user_id = $_SESSION['user_id'];
 
-    // 1. Kullanıcının Setlerini Çek (Son 5 tanesi)
+    // 1. Admin Kontrolü (Veritabanından anlık çekiyoruz)
+    $sql_admin_check = "SELECT is_admin FROM users WHERE user_id = $user_id";
+    $res_admin = $conn->query($sql_admin_check);
+    if ($res_admin->num_rows > 0) {
+        $row_admin = $res_admin->fetch_assoc();
+        if ($row_admin['is_admin'] == 1) {
+            $is_admin = true;
+        }
+    }
+
+    // 2. Kullanıcının Setlerini Çek (Son 5 tanesi)
     $sql_sets = "SELECT set_id, title FROM sets WHERE user_id = $user_id ORDER BY created_at DESC LIMIT 5";
     $result_sets = $conn->query($sql_sets);
     
-    // 2. Kullanıcının Klasörlerini Çek (Son 5 tanesi)
+    // 3. Kullanıcının Klasörlerini Çek (Son 5 tanesi)
     $sql_folders = "SELECT folder_id, name FROM folders WHERE user_id = $user_id ORDER BY created_at DESC LIMIT 5";
     $result_folders = $conn->query($sql_folders);
 }
@@ -221,6 +232,18 @@ if ($is_logged_in) {
             transform: translateY(-3px);
         }
 
+        /* ADMIN BUTON STİLİ */
+        .btn-admin {
+            background-color: #e74c3c; /* Kırmızı */
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(231, 76, 60, 0.4);
+        }
+        .btn-admin:hover {
+            background-color: #c0392b;
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(231, 76, 60, 0.6);
+        }
+
         @keyframes floatIn {
             from { opacity: 0; transform: translateY(30px); }
             to { opacity: 1; transform: translateY(0); }
@@ -290,7 +313,11 @@ if ($is_logged_in) {
 
                 <div class="btn-group">
                     <a href="sets.php" class="btn btn-white">Tüm Setleri Keşfet</a>
-                    </div>
+                    
+                    <?php if ($is_admin): ?>
+                        <a href="admin.php" class="btn btn-admin"><i class="fa-solid fa-shield-halved"></i> Admin Paneli</a>
+                    <?php endif; ?>
+                </div>
             </div>
 
         </div>

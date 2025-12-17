@@ -317,7 +317,7 @@ while($row = $result_cards->fetch_assoc()) {
             
             <div style="margin-top: 15px;">
                 <?php if ($current_user_id > 0): ?>
-                    <a href="select_folder.php?set_id=<?php echo $set_id; ?>" style="text-decoration:none; margin-right: 10px; background: #ffc107; color: #333; padding: 5px 10px; border-radius: 5px;">
+                    <a href="select_folder.php?set_id=<?php echo $set_id; ?>" style="text-decoration:none; margin-right: 5px; background: #ffc107; color: #333; padding: 5px 10px; border-radius: 5px;">
                         📁 Klasöre Ekle
                     </a>
 
@@ -326,7 +326,10 @@ while($row = $result_cards->fetch_assoc()) {
                         | <a href="delete_set.php?id=<?php echo $set_id; ?>" onclick="return confirm('Bu seti silmek istediğine emin misin?');" style="color: red; margin: 0 5px;">🗑️ Sil</a>
                     <?php endif; ?>
                 <?php endif; ?>
-                | <a href="quiz.php?id=<?php echo $set_id; ?>" style="text-decoration:none; margin-left: 10px; background: #333; color: white; padding: 5px 10px; border-radius: 5px;">🧠 Test Çöz</a>
+                
+                | <a href="write_mode.php?id=<?php echo $set_id; ?>" style="text-decoration:none; margin-left: 5px; margin-right: 5px; background: #6c5ce7; color: white; padding: 5px 10px; border-radius: 5px;">✍️ Yazma Modu</a>
+                
+                | <a href="quiz.php?id=<?php echo $set_id; ?>" style="text-decoration:none; margin-left: 5px; background: #333; color: white; padding: 5px 10px; border-radius: 5px;">🧠 Test Çöz</a>
             </div>
         </div>
     </div>
