@@ -65,8 +65,8 @@ $result = $conn->query($sql);
             box-shadow: 0 8px 32px rgba(0,0,0,0.1); border: 1px solid rgba(255,255,255,0.3);
             text-align: center; margin-bottom: 40px;
         }
-        .glass-hero h1 { font-size: 36px; font-weight: 800; color: #fff; margin: 0 0 10px 0; text-shadow: 0 2px 5px rgba(0,0,0,0.15); }
-        .glass-hero p { font-size: 16px; color: rgba(255, 255, 255, 0.9); margin: 0 0 30px 0; }
+        .glass-hero h1 { font-size: 36px; font-weight: 800; color: #000; margin: 0 0 10px 0; text-shadow: 0 2px 5px rgba(0,0,0,0.15); }
+        .glass-hero p { font-size: 16px; color: #222;; margin: 0 0 30px 0; }
 
         /* ARAMA FORMU */
         .search-form { display: flex; justify-content: center; gap: 10px; margin-bottom: 30px; flex-wrap: wrap; }

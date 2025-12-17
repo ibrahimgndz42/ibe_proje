@@ -42,19 +42,16 @@ if (isset($_POST['change_password'])) {
     }
 }
 
-// --- 2. HESAP SİLME (GÜNCELLENDİ: Admin Kontrolü) ---
+// --- 2. HESAP SİLME ---
 if (isset($_POST['delete_account'])) {
-    // Önce kullanıcının admin olup olmadığını kontrol et
     $check_admin_sql = "SELECT is_admin FROM users WHERE user_id = $user_id";
     $check_admin_res = $conn->query($check_admin_sql);
     $admin_row = $check_admin_res->fetch_assoc();
 
     if ($admin_row['is_admin'] == 1) {
-        // Eğer admin ise işlemi durdur ve uyarı ver (Javascript alert ile veya yönlendirerek)
         echo "<script>alert('⛔ Yöneticiler hesaplarını silemezler!'); window.location.href='profile.php';</script>";
         exit;
     } else {
-        // Admin DEĞİLSE silme işlemine devam et
         $sql_pic = "SELECT profile_pic FROM users WHERE user_id = $user_id";
         $res_pic = $conn->query($sql_pic);
         $row_pic = $res_pic->fetch_assoc();
@@ -114,7 +111,7 @@ if (isset($_FILES['profile_image'])) {
     }
 }
 
-// Kullanıcı Bilgileri (GÜNCELLENDİ: is_admin eklendi)
+// Kullanıcı Bilgileri
 $sql_user = "SELECT username, email, created_at, profile_pic, is_admin FROM users WHERE user_id = $user_id";
 $res_user = $conn->query($sql_user);
 $user_info = $res_user->fetch_assoc();
@@ -149,12 +146,14 @@ $res_folders = $conn->query("SELECT * FROM folders WHERE user_id = $user_id ORDE
             padding: 0 20px 40px 20px;
         }
 
+        /* --- AYDINLIK CAM PANEL (LIGHT GLASS) --- */
         .glass-panel {
-            background: rgba(255, 255, 255, 0.25);
-            backdrop-filter: blur(15px);
-            border: 1px solid rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.3); /* Daha açık beyaz */
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
             border-radius: 20px;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            color: #333; /* Koyu Yazı */
         }
 
         /* PROFİL HEADER */
@@ -162,7 +161,6 @@ $res_folders = $conn->query("SELECT * FROM folders WHERE user_id = $user_id ORDE
             text-align: center;
             padding: 40px;
             margin-bottom: 40px;
-            color: #fff;
             position: relative;
         }
         .profile-pic-wrapper {
@@ -200,26 +198,76 @@ $res_folders = $conn->query("SELECT * FROM folders WHERE user_id = $user_id ORDE
         .delete-btn { left: 5px; background: #ff7675; border: none; }
         .delete-btn:hover { background: #d63031; transform: scale(1.1); }
         #file-upload { display: none; }
-        .profile-header h1 { margin: 0 0 10px 0; font-size: 32px; font-weight: 800; text-shadow: 0 2px 5px rgba(0,0,0,0.15); }
-        .profile-header p { margin: 5px 0; font-size: 16px; color: rgba(255, 255, 255, 0.9); }
+        
+        .profile-header h1 { 
+            margin: 0 0 10px 0; 
+            font-size: 32px; 
+            font-weight: 800; 
+            color: #000; /* Başlık Siyah */
+        }
+        .profile-header p { 
+            margin: 5px 0; 
+            font-size: 16px; 
+            color: #444; /* Metin Koyu Gri */
+            font-weight: 500;
+        }
 
         /* KART STİLLERİ */
-        .section-title { font-size: 24px; color: #fff; margin-bottom: 20px; font-weight: 700; text-shadow: 0 2px 4px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: space-between; }
-        .section-title a { font-size: 14px; color: #fff; text-decoration: underline; font-weight: normal; }
+        .section-title { 
+            font-size: 24px; 
+            color: #333; /* Başlık Koyu */
+            margin-bottom: 20px; 
+            font-weight: 700; 
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between; 
+            text-shadow: none;
+        }
+        .section-title a { font-size: 14px; color: #333; text-decoration: underline; font-weight: normal; }
+        
         .grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; margin-bottom: 50px; }
-        .item-card { background: rgba(255, 255, 255, 0.65); border-radius: 16px; padding: 20px; text-decoration: none; color: #333; transition: all 0.3s ease; border: 1px solid rgba(255, 255, 255, 0.5); display: flex; flex-direction: column; min-height: 160px; }
-        .item-card:hover { transform: translateY(-5px); background: rgba(255, 255, 255, 0.95); box-shadow: 0 10px 25px rgba(0,0,0,0.15); }
+        
+        /* Kartların içi zaten açıktı, biraz daha belirginleştirdik */
+        .item-card { 
+            background: rgba(255, 255, 255, 0.7); 
+            border-radius: 16px; 
+            padding: 20px; 
+            text-decoration: none; 
+            color: #333; 
+            transition: all 0.3s ease; 
+            border: 1px solid rgba(255, 255, 255, 0.6); 
+            display: flex; flex-direction: column; min-height: 160px; 
+        }
+        .item-card:hover { transform: translateY(-5px); background: rgba(255, 255, 255, 0.95); box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+        
         .category-badge { align-self: flex-start; background: #6A5ACD; color: white; padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 600; margin-bottom: 15px; }
-        .card-title { font-size: 18px; font-weight: 700; color: #2c3e50; margin: 0 0 10px 0; }
-        .card-desc { font-size: 13px; color: #666; line-height: 1.4; flex-grow: 1; margin-bottom: 10px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-        .card-footer { border-top: 1px solid rgba(0,0,0,0.05); padding-top: 10px; font-size: 12px; color: #888; text-align: right; }
+        .card-title { font-size: 18px; font-weight: 700; color: #222; margin: 0 0 10px 0; }
+        .card-desc { font-size: 13px; color: #555; line-height: 1.4; flex-grow: 1; margin-bottom: 10px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .card-footer { border-top: 1px solid rgba(0,0,0,0.1); padding-top: 10px; font-size: 12px; color: #777; text-align: right; }
         .folder-icon { font-size: 40px; margin-bottom: 10px; display: block; text-align: center; }
         .folder-card-content { text-align: center; width: 100%; }
-        .empty-msg { grid-column: 1 / -1; text-align: center; padding: 40px; color: rgba(255,255,255,0.8); font-size: 18px; background: rgba(255,255,255,0.1); border-radius: 16px; border: 1px dashed rgba(255,255,255,0.3); }
-        .create-btn { display: inline-block; background: #fff; color: #6A5ACD; padding: 12px 30px; border-radius: 30px; text-decoration: none; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.1); transition: 0.3s; }
-        .create-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0,0,0,0.15); }
+        
+        .empty-msg { 
+            grid-column: 1 / -1; 
+            text-align: center; padding: 40px; 
+            color: #555; 
+            font-size: 18px; 
+            background: rgba(255,255,255,0.4); 
+            border-radius: 16px; 
+            border: 1px dashed rgba(0,0,0,0.2); 
+            font-weight: 500;
+        }
+        
+        .create-btn { 
+            display: inline-block; 
+            background: #333; color: #fff; /* Siyah Buton */
+            padding: 12px 30px; border-radius: 30px; 
+            text-decoration: none; font-weight: bold; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1); transition: 0.3s; 
+        }
+        .create-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0,0,0,0.15); background: #000; }
 
-        /* --- GÜVENLİK PANELİ STİLLERİ (Accordion) --- */
+        /* --- GÜVENLİK PANELİ STİLLERİ --- */
         .security-panel {
             margin-top: 50px;
             margin-bottom: 30px;
@@ -232,19 +280,17 @@ $res_folders = $conn->query("SELECT * FROM folders WHERE user_id = $user_id ORDE
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background: rgba(255, 255, 255, 0.3);
-            border-bottom: 1px solid rgba(255,255,255,0.1);
+            background: rgba(255, 255, 255, 0.4);
+            border-bottom: 1px solid rgba(255,255,255,0.5);
             transition: 0.2s;
         }
-        .security-header:hover {
-            background: rgba(255, 255, 255, 0.5);
-        }
-        .security-header h3 { margin: 0; color: #333; font-size: 18px; }
-        .toggle-icon { font-size: 20px; font-weight: bold; color: #555; transition: transform 0.3s; }
+        .security-header:hover { background: rgba(255, 255, 255, 0.6); }
+        .security-header h3 { margin: 0; color: #222; font-size: 18px; }
+        .toggle-icon { font-size: 20px; font-weight: bold; color: #333; transition: transform 0.3s; }
 
         #password-form-container {
             padding: 30px;
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.2);
         }
 
         .form-group { 
@@ -252,14 +298,24 @@ $res_folders = $conn->query("SELECT * FROM folders WHERE user_id = $user_id ORDE
             position: relative; 
         }
 
-        .form-group label { display: block; margin-bottom: 5px; color: #555; font-weight: 600; }
+        .form-group label { display: block; margin-bottom: 5px; color: #333; font-weight: 600; }
         
+        /* Inputlar (Create Set ve Login stili) */
         .form-group input { 
             width: 100%; 
-            padding: 10px 40px 10px 10px; 
-            border: 1px solid rgba(0,0,0,0.1); 
+            padding: 12px 40px 12px 12px; 
+            border: 1px solid rgba(255,255,255,0.4); 
             border-radius: 8px; 
+            background: rgba(255,255,255,0.6); /* Yarı saydam beyaz arka plan */
+            color: #333; /* Koyu Yazı */
+            font-weight: 500;
+            outline: none;
+            transition: 0.3s;
+        }
+        .form-group input:focus {
             background: rgba(255,255,255,0.8);
+            border-color: #fff;
+            box-shadow: 0 0 10px rgba(255,255,255,0.3);
         }
 
         .btn-update-pass {
@@ -270,31 +326,46 @@ $res_folders = $conn->query("SELECT * FROM folders WHERE user_id = $user_id ORDE
         .toggle-password-icon {
             position: absolute;
             right: 15px;
-            bottom: 12px; 
+            bottom: 13px; 
             cursor: pointer;
-            color: #777;
+            color: #555;
             transition: color 0.3s;
         }
-        .toggle-password-icon:hover { color: #333; }
+        .toggle-password-icon:hover { color: #000; }
 
         .alert { padding: 10px; margin-bottom: 15px; border-radius: 8px; font-weight: bold; }
-        .alert.success { color: #27ae60; background: rgba(46, 204, 113, 0.2); }
-        .alert.error { color: #c0392b; background: rgba(231, 76, 60, 0.2); }
+        .alert.success { color: #006400; background: rgba(80, 255, 120, 0.3); border: 1px solid #50ff78; }
+        .alert.error { color: #8b0000; background: rgba(255, 80, 80, 0.3); border: 1px solid #fa3939; }
 
-        /* Danger Zone */
+        /* Danger Zone - Yazıları koyulaştırdık */
         .danger-zone {
-            background: rgba(255, 71, 87, 0.15); border: 1px solid rgba(255, 71, 87, 0.5); padding: 30px; border-radius: 20px; text-align: center; color: #fff; margin-top: 30px; backdrop-filter: blur(15px);
+            background: rgba(255, 71, 87, 0.15); 
+            border: 1px solid rgba(255, 71, 87, 0.5); 
+            padding: 30px; 
+            border-radius: 20px; 
+            text-align: center; 
+            color: #333; /* Yazı rengi koyu */
+            margin-top: 30px; 
+            backdrop-filter: blur(15px);
         }
-        .danger-zone h3 { margin-top: 0; color: #ffeaa7; }
-        .danger-zone p { margin-bottom: 20px; font-size: 14px; color: rgba(255,255,255,0.9); }
+        .danger-zone h3 { margin-top: 0; color: #d63031; }
+        .danger-zone p { margin-bottom: 20px; font-size: 14px; color: #444; }
+        
         .btn-delete-account { background: #ff4757; color: white; border: none; padding: 12px 30px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 15px; box-shadow: 0 4px 10px rgba(255, 71, 87, 0.3); }
         .btn-delete-account:hover { background: #e04050; transform: scale(1.02); box-shadow: 0 6px 15px rgba(255, 71, 87, 0.5); }
         
         /* Admin Kilit Bölgesi */
         .admin-locked {
-            background: rgba(52, 152, 219, 0.15); border: 1px solid rgba(52, 152, 219, 0.5); padding: 20px; border-radius: 20px; text-align: center; color: #fff; margin-top: 30px; backdrop-filter: blur(15px);
+            background: rgba(52, 152, 219, 0.15); 
+            border: 1px solid rgba(52, 152, 219, 0.5); 
+            padding: 20px; 
+            border-radius: 20px; 
+            text-align: center; 
+            color: #333; /* Yazı rengi koyu */
+            margin-top: 30px; 
+            backdrop-filter: blur(15px);
         }
-        .admin-locked h3 { margin-top: 0; color: #fff; }
+        .admin-locked h3 { margin-top: 0; color: #0984e3; }
     </style>
 </head>
 <body>

@@ -66,7 +66,7 @@ $result = $conn->query($sql_folders);
             justify-content: space-between;
             align-items: center;
             margin-bottom: 30px;
-            color: #fff;
+            color: #000;
         }
 
         .header-area h1 {

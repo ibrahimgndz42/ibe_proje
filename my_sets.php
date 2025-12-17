@@ -50,7 +50,7 @@ $result = $conn->query($sql_sets);
             justify-content: space-between;
             align-items: center;
             margin-bottom: 30px;
-            color: #fff;
+            color: #000;
         }
 
         .header-area h1 {
