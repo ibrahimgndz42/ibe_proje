@@ -5,6 +5,60 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+// Zaten session varsa bir şey yapmaya gerek yok
+if (!isset($_SESSION['user_id']) && isset($_COOKIE['remember_token'])) {
+
+    $token = $_COOKIE['remember_token'];
+
+    // Token DB'de var mı kontrol et
+    $result = $conn->query("
+        SELECT * FROM users 
+        WHERE remember_token='$token'
+    ");
+
+    if ($result->num_rows === 1) {
+        $user = $result->fetch_assoc();
+
+        // Token süresi geçmemişse
+        if (strtotime($user['remember_expire']) > time()) {
+
+            // Kullanıcıyı otomatik giriş yap
+            $_SESSION['user_id'] = $user['user_id'];
+            $_SESSION['username'] = $user['username'];
+
+            // -----------------------------
+            // SLIDING EXPIRATION BURADA
+            // Token’ı her girişte 30 gün ileri alıyoruz
+            // -----------------------------
+
+            $newExpiry = time() + (60 * 60 * 24 * 30);
+            $newExpireDate = date("Y-m-d H:i:s", $newExpiry);
+
+            // DB'de süreyi güncelle
+            $conn->query("
+                UPDATE users 
+                SET remember_expire='$newExpireDate'
+                WHERE user_id={$user['user_id']}
+            ");
+
+            // Cookie süresini de yenile
+            setcookie(
+                "remember_token",
+                $token,
+                $newExpiry,
+                "/",
+                "",
+                false,
+                true
+            );
+
+        } else {
+            // Süresi geçtiyse cookie’yi sil
+            setcookie("remember_token", "", time() - 3600, "/");
+        }
+    }
+}
+
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $username = $_POST['username'];
     $password = $_POST['password'];
@@ -15,12 +69,42 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $user = $result->fetch_assoc();
 
         if (password_verify($password, $user['password'])) {
+
             $_SESSION['user_id'] = $user['user_id'];
             $_SESSION['username'] = $user['username'];
 
+            // BENİ HATIRLA seçildiyse
+            if (isset($_POST['remember'])) {
+
+                // Güvenli rastgele 64 karakter token
+                $token = bin2hex(random_bytes(32));
+
+                // 30 günlük süre
+                $expiryTime = time() + (60 * 60 * 24 * 30);
+                $expire = date("Y-m-d H:i:s", $expiryTime);
+
+                // DB ye kaydet
+                $conn->query("
+                    UPDATE users 
+                    SET remember_token='$token', remember_expire='$expire'
+                    WHERE user_id={$user['user_id']}
+                ");
+
+                // Tarayıcı cookie'sine yaz (HttpOnly: JavaScript okuyamaz)
+                setcookie(
+                    "remember_token",
+                    $token,
+                    $expiryTime,
+                    "/",
+                    "",
+                    false,
+                    true
+                );
+            }
+
             $success = "Giriş başarılı! Yönlendiriliyorsunuz...";
         } else {
-            $error = "Şifre hatalı!";
+            $error = "Girdiğiniz şifre doğru değil. Tekrar deneyin.";
         }
     } else {
         $error = "Kullanıcı adı bulunamadı!";
@@ -225,6 +309,27 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         .login-btn:hover {
             background: #eaeaea;
         }
+
+        .register-link {
+            display: block;
+            text-align: center;
+            margin-top: 15px;
+            color: #fff;
+            font-weight: 600;
+            text-decoration: none;
+            padding: 10px;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.25);
+            border: 1px solid rgba(255,255,255,0.35);
+            backdrop-filter: blur(5px);
+            transition: 0.25s ease;
+        }
+
+        .register-link:hover {
+            background: rgba(255,255,255,0.45);
+            transform: scale(1.03);
+        }
+
     </style>
 </head>
 
@@ -247,7 +352,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <script>
                 setTimeout(() => {
                     window.location.href = "index.php";
-                }, 3000);
+                }, 1500);
             </script>
         <?php endif; ?>
 
@@ -270,8 +375,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 <span class="focus-border"></span>
                 <i class="fa-solid fa-eye toggle-password" onclick="togglePassword()"></i>
             </div>
+            <label style="color:white; display:flex; gap:8px; align-items:center; margin-top:10px;">
+                <input type="checkbox" name="remember"> Beni Hatırla
+            </label>
 
             <button type="submit" class="login-btn">Giriş Yap</button>
+            <a href="register.php" class="register-link">Hesabınız yok mu? Kayıt Ol</a>
+
+
         </form>
         <?php endif; ?>
 

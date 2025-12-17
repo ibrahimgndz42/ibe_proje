@@ -4,3 +4,11 @@ body {
     background: linear-gradient(135deg, #8EC5FC, #E0C3FC);
     height: 100vh;
 }
+
+/* Temalar */
+.bg-default  { background: linear-gradient(135deg, #8EC5FC, #E0C3FC); }
+.bg-sunset   { background: linear-gradient(135deg, #fa709a, #fee140); }
+.bg-forest   { background: linear-gradient(135deg, #11998e, #38ef7d); }
+.bg-night    { background: linear-gradient(135deg, #0f2027, #2c5364); }
+.bg-lavender { background: linear-gradient(135deg, #E6E6FA, #D3D3D3); }
+.bg-fire     { background: linear-gradient(135deg, #ff416c, #ff4b2b); }

@@ -327,6 +327,7 @@ while($row = $result_cards->fetch_assoc()) {
                     <?php endif; ?>
                 <?php endif; ?>
                 | <a href="quiz.php?id=<?php echo $set_id; ?>" style="text-decoration:none; margin-left: 10px; background: #333; color: white; padding: 5px 10px; border-radius: 5px;">🧠 Test Çöz</a>
+            
             </div>
         </div>
     </div>
