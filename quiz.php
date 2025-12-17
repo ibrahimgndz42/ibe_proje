@@ -15,12 +15,12 @@ if (file_exists("session_check.php")) {
 
 include "connectDB.php";
 
-if (!isset($_GET['id'])) {
+if (!isset($_GET['set_id'])) {
     echo "<center><h1>ID gerekli.</h1></center>";
     exit;
 }
 
-$set_id = intval($_GET['id']);
+$set_id = intval($_GET['set_id']);
 
 // Set başlığını çek
 $sql_set = "SELECT title FROM sets WHERE set_id = $set_id";
@@ -196,12 +196,12 @@ while($row = $res_cards->fetch_assoc()) {
                     <h3>⚠️ Test modu için bu sette en az 4 kart bulunmalıdır.</h3>
                     <p>Şu anki kart sayısı: <strong><?php echo count($cards); ?></strong></p>
                     <br>
-                    <a href="view_set.php?id=<?php echo $set_id; ?>" class="btn-act btn-exit">Geri Dön</a>
+                    <a href="view_set.php?set_id=<?php echo $set_id; ?>" class="btn-act btn-exit">Geri Dön</a>
                 </div>
             <?php else: ?>
                 <div class="glass-card">
                     
-                    <a href="view_set.php?id=<?php echo $set_id; ?>" class="close-btn" title="Çıkış">✕</a>
+                    <a href="view_set.php?set_id=<?php echo $set_id; ?>" class="close-btn" title="Çıkış">✕</a>
 
                     <div id="quizBox">
                         <div class="quiz-header">
@@ -222,7 +222,7 @@ while($row = $res_cards->fetch_assoc()) {
                         
                         <div class="btn-group">
                             <button class="btn-act btn-retry" onclick="location.reload()">Tekrar Çöz</button>
-                            <a href="view_set.php?id=<?php echo $set_id; ?>" class="btn-act btn-exit">Sete Dön</a>
+                            <a href="view_set.php?set_id=<?php echo $set_id; ?>" class="btn-act btn-exit">Sete Dön</a>
                         </div>
                     </div>
 

@@ -174,7 +174,7 @@ $result = $conn->query($sql);
                         $rating = $row['avg_rating'] ? round($row['avg_rating'], 1) : 0;
                     ?>
 
-                    <a href="view_set.php?id=<?php echo $row['set_id']; ?>" class="set-card">
+                    <a href="view_set.php?set_id=<?php echo $row['set_id']; ?>" class="set-card">
                         
                         <h3 class="card-title"><?php echo htmlspecialchars($row['title']); ?></h3>
 

@@ -283,12 +283,12 @@ $res_folders = $stmt_folders->get_result();
                     
                     <script>
                         setTimeout(function(){
-                            window.location.href = 'view_set.php?id=<?= $set_id ?>';
+                            window.location.href = 'view_set.php?set_id=<?= $set_id ?>';
                         }, 2000); 
                     </script>
 
                 <?php else: ?>
-                    <a href="view_set.php?id=<?php echo $set_id; ?>" class="close-btn"><i class="fa-solid fa-xmark"></i></a>
+                    <a href="view_set.php?set_id=<?php echo $set_id; ?>" class="close-btn"><i class="fa-solid fa-xmark"></i></a>
 
                     <h2>Klasöre Ekle</h2>
                     <p class="sub-text">"<?php echo htmlspecialchars($set['title']); ?>" setini seçtiğin klasöre ekle.</p>

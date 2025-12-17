@@ -1,30 +1,32 @@
 <?php
-include "connectDB.php";
-include "menu.php";
+// Session başlatma kontrolü (En başta olmalı)
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
-if (!isset($_GET['id'])) {
+include "connectDB.php";
+// DİKKAT: include "menu.php"; BURADAN SİLİNDİ. Aşağıya, body içine taşındı.
+
+if (!isset($_GET['set_id'])) {
     echo "<center><h1>Geçersiz Set ID</h1><a href='sets.php'>Geri Dön</a></center>";
     exit;
 }
 
-$set_id = intval($_GET['id']);
+$set_id = intval($_GET['set_id']);
 $current_user_id = isset($_SESSION['user_id']) ? $_SESSION['user_id'] : 0;
 
-// --- 1. PUANLAMA İŞLEMİ (DÜZELTİLDİ: TARİH GÜNCELLEME EKLENDİ) ---
+// --- 1. PUANLAMA İŞLEMİ ---
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['submit_rating']) && $current_user_id > 0) {
     $puan = intval($_POST['rating']);
     if ($puan >= 1 && $puan <= 5) {
         
-        // DÜZELTME BURADA:
-        // Eğer kullanıcı daha önce oy verdiyse hem 'rating' hem de 'created_at' güncelleniyor.
         $stmt_rate = $conn->prepare("INSERT INTO set_ratings (set_id, user_id, rating, created_at) VALUES (?, ?, ?, NOW()) 
                                      ON DUPLICATE KEY UPDATE rating = VALUES(rating), created_at = NOW()");
         
-        // Parametre sayısı değişmedi (set_id, user_id, rating) -> "iii"
         $stmt_rate->bind_param("iii", $set_id, $current_user_id, $puan);
         
         $stmt_rate->execute();
-        header("Location: view_set.php?id=$set_id"); 
+        header("Location: view_set.php?set_id=$set_id"); 
         exit;
     }
 }
@@ -51,7 +53,7 @@ $theme_class = !empty($set['css_class']) ? $set['css_class'] : 'bg-default';
 // --- 3. PUAN BİLGİLERİNİ ÇEK ---
 $sql_avg = "SELECT AVG(rating) as avg_score, COUNT(*) as total_votes FROM set_ratings WHERE set_id = $set_id";
 $rating_data = $conn->query($sql_avg)->fetch_assoc();
-$avg_score = round($rating_data['avg_score'], 1); // Örn: 4.5
+$avg_score = round($rating_data['avg_score'], 1); 
 $total_votes = $rating_data['total_votes'];
 
 // Kullanıcının kendi puanı
@@ -71,7 +73,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['submit_comment']) && $
         $stmt_com = $conn->prepare("INSERT INTO comments (set_id, user_id, comment_text) VALUES (?, ?, ?)");
         $stmt_com->bind_param("iis", $set_id, $current_user_id, $comment_text);
         $stmt_com->execute();
-        header("Location: view_set.php?id=$set_id");
+        header("Location: view_set.php?set_id=$set_id");
         exit;
     }
 }
@@ -82,7 +84,7 @@ if (isset($_GET['delete_comment']) && $current_user_id > 0) {
     $check_owner = $conn->query("SELECT * FROM comments WHERE comment_id = $del_id AND user_id = $current_user_id");
     if ($check_owner->num_rows > 0) {
         $conn->query("DELETE FROM comments WHERE comment_id = $del_id");
-        header("Location: view_set.php?id=$set_id");
+        header("Location: view_set.php?set_id=$set_id");
         exit;
     }
 }
@@ -97,7 +99,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update_comment_submit'
         $stmt_upd = $conn->prepare("UPDATE comments SET comment_text = ? WHERE comment_id = ?");
         $stmt_upd->bind_param("si", $upd_text, $upd_id);
         $stmt_upd->execute();
-        header("Location: view_set.php?id=$set_id");
+        header("Location: view_set.php?set_id=$set_id");
         exit;
     }
 }
@@ -281,6 +283,8 @@ while($row = $result_cards->fetch_assoc()) {
 </head>
 <body>
 
+<?php include "menu.php"; ?>
+
 <div class="view-wrapper">
     <div>
         <h1><?php echo htmlspecialchars($set['title']); ?></h1>
@@ -330,11 +334,11 @@ while($row = $result_cards->fetch_assoc()) {
             </div>
             <div class="action-container">
                 <div class="study-actions">
-                    <a href="write_mode.php?id=<?php echo $set_id; ?>" class="btn-hero hero-write">
+                    <a href="write_mode.php?set_id=<?php echo $set_id; ?>" class="btn-hero hero-write">
                         ✍️ Yazma Modu
                     </a>
                     
-                    <a href="quiz.php?id=<?php echo $set_id; ?>" class="btn-hero hero-quiz">
+                    <a href="quiz.php?set_id=<?php echo $set_id; ?>" class="btn-hero hero-quiz">
                         🧠 Test Çöz
                     </a>
                 </div>
@@ -349,7 +353,7 @@ while($row = $result_cards->fetch_assoc()) {
                             <a href="edit_set.php?set_id=<?php echo $set_id; ?>" class="btn-small edit">
                                 ✏️ Düzenle
                             </a>
-                            <a href="delete_set.php?id=<?php echo $set_id; ?>" onclick="return confirm('Bu seti silmek istediğine emin misin?');" class="btn-small delete">
+                            <a href="delete_set.php?set_id=<?php echo $set_id; ?>" onclick="return confirm('Bu seti silmek istediğine emin misin?');" class="btn-small delete">
                                 🗑️ Sil
                             </a>
                         <?php endif; ?>
@@ -409,8 +413,8 @@ while($row = $result_cards->fetch_assoc()) {
                             </div>
                             <?php if ($current_user_id == $com['user_id']): ?>
                                 <div class="comment-actions">
-                                    <a href="view_set.php?id=<?php echo $set_id; ?>&edit_comment=<?php echo $com['comment_id']; ?>" style="color: #4a90e2;">✏️ Düzenle</a>
-                                    <a href="view_set.php?id=<?php echo $set_id; ?>&delete_comment=<?php echo $com['comment_id']; ?>" onclick="return confirm('Silmek istediğine emin misin?');" style="color: #e74c3c;">🗑️ Sil</a>
+                                    <a href="view_set.php?set_id=<?php echo $set_id; ?>&edit_comment=<?php echo $com['comment_id']; ?>" style="color: #4a90e2;">✏️ Düzenle</a>
+                                    <a href="view_set.php?set_id=<?php echo $set_id; ?>&delete_comment=<?php echo $com['comment_id']; ?>" onclick="return confirm('Silmek istediğine emin misin?');" style="color: #e74c3c;">🗑️ Sil</a>
                                 </div>
                             <?php endif; ?>
                         </div>
@@ -420,7 +424,7 @@ while($row = $result_cards->fetch_assoc()) {
                                 <textarea name="edit_comment_text" style="width: 100%; height: 60px; padding: 10px; border-radius: 8px; border: 1px solid #ccc; resize: none;"><?php echo htmlspecialchars($com['comment_text']); ?></textarea>
                                 <div style="margin-top: 8px;">
                                     <button type="submit" name="update_comment_submit" style="padding: 5px 15px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer;">Kaydet</button>
-                                    <a href="view_set.php?id=<?php echo $set_id; ?>" style="color: #666; margin-left: 10px; font-size: 13px; text-decoration: none;">İptal</a>
+                                    <a href="view_set.php?set_id=<?php echo $set_id; ?>" style="color: #666; margin-left: 10px; font-size: 13px; text-decoration: none;">İptal</a>
                                 </div>
                             </form>
                         <?php else: ?>

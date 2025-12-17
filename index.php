@@ -168,7 +168,7 @@ if ($is_logged_in) {
                         $result_top->data_seek(0);
                         while($top = $result_top->fetch_assoc()): 
                         ?>
-                            <a href="view_set.php?id=<?= $top['set_id'] ?>" class="set-card">
+                            <a href="view_set.php?set_id=<?= $top['set_id'] ?>" class="set-card">
                                 <div class="badge-score">
                                     <i class="fa-solid fa-star"></i> <?= number_format($top['avg_score'], 1) ?>
                                 </div>
@@ -217,7 +217,7 @@ if ($is_logged_in) {
                                 if($count >= 4) break; 
                                 $count++;
                         ?>
-                            <a href="view_set.php?id=<?= $top['set_id'] ?>" class="set-card" style="min-height:150px;">
+                            <a href="view_set.php?set_id=<?= $top['set_id'] ?>" class="set-card" style="min-height:150px;">
                                 <div class="badge-score"><i class="fa-solid fa-star"></i> <?= number_format($top['avg_score'], 1) ?></div>
                                 <h3 class="card-title" style="font-size:1.1rem;"><?= htmlspecialchars($top['title']) ?></h3>
                                 <div class="card-info" style="font-size:0.8rem;">

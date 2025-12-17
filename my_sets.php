@@ -186,7 +186,7 @@ $result = $conn->query($sql_sets);
                             $count = ($res_count) ? $res_count->fetch_assoc()['cnt'] : 0;
                         ?>
                         
-                        <a href="view_set.php?id=<?php echo $row['set_id']; ?>" class="folder-card">
+                        <a href="view_set.php?set_id=<?php echo $row['set_id']; ?>" class="folder-card">
                             <span class="folder-icon">📝</span>
                             <div class="folder-name"><?php echo htmlspecialchars($row['title']); ?></div>
                             <div class="folder-count"><?php echo $count; ?> terim</div>
