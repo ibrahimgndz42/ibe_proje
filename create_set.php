@@ -2,11 +2,9 @@
 include "session_check.php";
 include "connectDB.php";
 
-// Temaları veritabanından çek
+// Temaları ve Kategorileri çek (Aynı kalıyor)
 $sql_themes = "SELECT * FROM themes ORDER BY theme_id ASC";
 $result_themes = $conn->query($sql_themes);
-
-// Kategorileri çek
 $sql_cats = "SELECT * FROM categories ORDER BY category_id ASC";
 $result_cats = $conn->query($sql_cats);
 
@@ -15,7 +13,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $set_title = trim($_POST["set_title"]);
     $set_desc  = trim($_POST["set_desc"]);
     $set_category = $_POST["set_category"];
-    // Tema ID'sini al (Seçilmezse varsayılan 1 olsun veya kontrol et)
     $set_theme_id = isset($_POST["set_theme_id"]) ? $_POST["set_theme_id"] : 1; 
     $user_id   = $_SESSION["user_id"];
 
@@ -27,42 +24,79 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $error = "Lütfen bir kategori seçiniz!";
     } 
     else {
-        // Kart Kontrolü
-        $validCardCount = 0;
+        // --- YENİ EKLENEN KISIM: TEKRAR EDEN KELİME KONTROLÜ ---
+        
+        // 1. Önce boş olmayan terimleri bir diziye toplayalım (küçük harfe çevirerek, büyük/küçük duyarlılığını kaldırmak için)
+        $terms_to_check = [];
         if (isset($_POST["term"])) {
-            foreach ($_POST["term"] as $key => $term) {
-                $def = $_POST["defination"][$key];
-                if (trim($term) !== "" && trim($def) !== "") {
-                    $validCardCount++;
+            foreach ($_POST["term"] as $term) {
+                $clean_term = trim($term);
+                if (!empty($clean_term)) {
+                    // mb_strtolower Türkçe karakter sorununu çözer (I-ı, İ-i gibi)
+                    $terms_to_check[] = mb_strtolower($clean_term, 'UTF-8'); 
                 }
             }
         }
 
-        if ($validCardCount < 2) {
-            $error = "En az 2 dolu kart eklemelisiniz!";
-        } else {
-            // Sets tablosuna kaydet
-            $stmt = $conn->prepare("INSERT INTO sets (user_id, title, description, category_id, theme_id) VALUES (?, ?, ?, ?, ?)");
-            $stmt->bind_param("issii", $user_id, $set_title, $set_desc, $set_category, $set_theme_id);
-            
-            if ($stmt->execute()) {
-                $set_id = $conn->insert_id;
+        // 2. Dizi içindeki eleman sayılarını sayalım
+        $term_counts = array_count_values($terms_to_check);
+        
+        // 3. Tekrar eden var mı kontrol edelim
+        $has_duplicate = false;
+        $duplicate_word = "";
+        
+        foreach ($term_counts as $word => $count) {
+            if ($count > 1) {
+                $has_duplicate = true;
+                $duplicate_word = $word; // İlk bulunan tekrarı al
+                break;
+            }
+        }
 
-                // Kartları Ekle
-                $stmt_card = $conn->prepare("INSERT INTO cards (set_id, term, defination) VALUES (?, ?, ?)");
-                
+        if ($has_duplicate) {
+            // Hata mesajını ayarla ve işlemi durdur
+            $error = "Hata: '" . strtoupper($duplicate_word) . "' kelimesini birden fazla kez kullandınız. Lütfen her kart için farklı bir terim giriniz.";
+        } 
+        else {
+            // --- EĞER TEKRAR YOKSA ESKİ KOD DEVAM EDİYOR ---
+            
+            // Kart Kontrolü (Boş olmayan en az 2 kart var mı?)
+            $validCardCount = 0;
+            if (isset($_POST["term"])) {
                 foreach ($_POST["term"] as $key => $term) {
                     $def = $_POST["defination"][$key];
                     if (trim($term) !== "" && trim($def) !== "") {
-                        $stmt_card->bind_param("iss", $set_id, $term, $def);
-                        $stmt_card->execute();
+                        $validCardCount++;
                     }
                 }
-                $success = "Set başarıyla oluşturuldu! Yönlendiriliyorsunuz...";
-            } else {
-                $error = "Veritabanı Hatası: " . $conn->error;
             }
-        }
+
+            if ($validCardCount < 2) {
+                $error = "En az 2 dolu kart eklemelisiniz!";
+            } else {
+                // Sets tablosuna kaydet
+                $stmt = $conn->prepare("INSERT INTO sets (user_id, title, description, category_id, theme_id) VALUES (?, ?, ?, ?, ?)");
+                $stmt->bind_param("issii", $user_id, $set_title, $set_desc, $set_category, $set_theme_id);
+                
+                if ($stmt->execute()) {
+                    $set_id = $conn->insert_id;
+
+                    // Kartları Ekle
+                    $stmt_card = $conn->prepare("INSERT INTO cards (set_id, term, defination) VALUES (?, ?, ?)");
+                    
+                    foreach ($_POST["term"] as $key => $term) {
+                        $def = $_POST["defination"][$key];
+                        if (trim($term) !== "" && trim($def) !== "") {
+                            $stmt_card->bind_param("iss", $set_id, $term, $def);
+                            $stmt_card->execute();
+                        }
+                    }
+                    $success = "Set başarıyla oluşturuldu! Yönlendiriliyorsunuz...";
+                } else {
+                    $error = "Veritabanı Hatası: " . $conn->error;
+                }
+            }
+        } // Tekrar kontrolü else bitişi
     }
 }
 ?>

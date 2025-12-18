@@ -400,7 +400,7 @@ $res_folders = $conn->query("SELECT * FROM folders WHERE user_id = $user_id ORDE
         <div class="grid-container">
             <?php if ($res_my_sets->num_rows > 0): ?>
                 <?php while($row = $res_my_sets->fetch_assoc()): ?>
-                    <a href="view_set.php?id=<?php echo $row['set_id']; ?>" class="item-card">
+                    <a href="view_set.php?set_id=<?php echo $row['set_id']; ?>" class="item-card">
                         <?php $cat = !empty($row['category']) ? htmlspecialchars($row['category']) : 'Genel'; ?>
                         <span class="category-badge"><?php echo $cat; ?></span>
                         <h3 class="card-title"><?php echo htmlspecialchars($row['title']); ?></h3>
@@ -426,7 +426,7 @@ $res_folders = $conn->query("SELECT * FROM folders WHERE user_id = $user_id ORDE
                         $res_count = $conn->query($sql_count);
                         $count = $res_count->fetch_assoc()['cnt'];
                     ?>
-                    <a href="view_folder.php?id=<?php echo $row['folder_id']; ?>" class="item-card" style="align-items: center; justify-content: center;">
+                    <a href="view_folder.php?folder_id=<?php echo $row['folder_id']; ?>" class="item-card" style="align-items: center; justify-content: center;">
                         <div class="folder-card-content">
                             <span class="folder-icon">📁</span>
                             <h3 class="card-title"><?php echo htmlspecialchars($row['name']); ?></h3>
