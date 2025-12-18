@@ -6,6 +6,7 @@ if (session_status() === PHP_SESSION_NONE) {
 
 include "connectDB.php";
 
+// Set ID Kontrolü
 if (!isset($_GET['set_id'])) {
     echo "<div style='text-align:center; margin-top:50px;'><h1>Geçersiz Set ID</h1><a href='sets.php'>Geri Dön</a></div>";
     exit;
@@ -13,6 +14,39 @@ if (!isset($_GET['set_id'])) {
 
 $set_id = intval($_GET['set_id']);
 $current_user_id = isset($_SESSION['user_id']) ? $_SESSION['user_id'] : 0;
+
+// --- 0. SET SİLME İŞLEMİ (YENİ EKLENDİ) ---
+// Linkten ?action=delete parametresi gelirse çalışır
+if (isset($_GET['action']) && $_GET['action'] == 'delete' && $current_user_id > 0) {
+    // 1. Önce bu setin sahibi gerçekten bu kullanıcı mı kontrol et
+    $check_sql = "SELECT user_id FROM sets WHERE set_id = $set_id";
+    $check_res = $conn->query($check_sql);
+
+    if ($check_res->num_rows > 0) {
+        $row = $check_res->fetch_assoc();
+        if ($row['user_id'] == $current_user_id) {
+            
+            // 2. Bağlı Kartları Sil
+            $conn->query("DELETE FROM cards WHERE set_id = $set_id");
+            
+            // 3. Bağlı Yorumları Sil (Veritabanında yetim veri kalmasın)
+            $conn->query("DELETE FROM comments WHERE set_id = $set_id");
+
+            // 4. Bağlı Puanları Sil
+            $conn->query("DELETE FROM set_ratings WHERE set_id = $set_id");
+
+            // 5. En son Seti Sil
+            $conn->query("DELETE FROM sets WHERE set_id = $set_id");
+
+            // 6. Listeleme sayfasına yönlendir
+            header("Location: sets.php?msg=deleted");
+            exit;
+        } else {
+            echo "<script>alert('Hata: Bu seti silme yetkiniz yok!'); window.location.href='view_set.php?set_id=$set_id';</script>";
+            exit;
+        }
+    }
+}
 
 // --- 1. PUANLAMA İŞLEMİ ---
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['submit_rating']) && $current_user_id > 0) {
@@ -118,122 +152,49 @@ while($row = $result_cards->fetch_assoc()) {
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <style>
-        body {
-            font-family: 'Poppins', sans-serif;
-            background: #f0f2f5; /* Hafif gri arka plan */
-        }
-        
+        body { font-family: 'Poppins', sans-serif; background: #f0f2f5; }
         .view-wrapper {
-            width: 90%; 
-            max-width: 950px; 
-            margin: 40px auto; 
-            padding: 40px;
-            background: rgba(255, 255, 255, 0.85); /* Daha opak beyaz */
-            backdrop-filter: blur(20px);
-            border-radius: 24px; 
-            box-shadow: 0 10px 40px rgba(0,0,0,0.08);
-            border: 1px solid rgba(255,255,255,0.6);
-            animation: fadeIn 0.6s ease;
+            width: 90%; max-width: 950px; margin: 40px auto; padding: 40px;
+            background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(20px);
+            border-radius: 24px; box-shadow: 0 10px 40px rgba(0,0,0,0.08);
+            border: 1px solid rgba(255,255,255,0.6); animation: fadeIn 0.6s ease;
             box-sizing: border-box; 
         }
-        
         @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-
-        /* --- YENİ MODERN HEADER TASARIMI --- */
-        .set-header {
-            text-align: center;
-            margin-bottom: 40px;
-            position: relative;
-        }
-
-        .set-title {
-            font-size: 2.8rem;
-            font-weight: 700;
-            margin: 0 0 10px 0;
-            background: linear-gradient(135deg, #2d3436 0%, #000 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            letter-spacing: -1px;
-            line-height: 1.2;
-        }
-
-        .set-description {
-            font-size: 1.05rem;
-            color: #636e72;
-            max-width: 700px;
-            margin: 0 auto 20px auto;
-            line-height: 1.6;
-        }
-
-        /* Badge (Etiket) Sistemi */
-        .meta-badges {
-            display: flex;
-            justify-content: center;
-            gap: 10px;
-            flex-wrap: wrap;
-            margin-bottom: 25px;
-        }
-
-        .badge {
-            display: inline-flex;
-            align-items: center;
-            padding: 6px 14px;
-            border-radius: 20px;
-            font-size: 0.85rem;
-            font-weight: 500;
-            background: #fff;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-            border: 1px solid rgba(0,0,0,0.05);
-            color: #555;
-            transition: transform 0.2s;
-        }
         
+        .set-header { text-align: center; margin-bottom: 40px; position: relative; }
+        .set-title {
+            font-size: 2.8rem; font-weight: 700; margin: 0 0 10px 0;
+            background: linear-gradient(135deg, #2d3436 0%, #000 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            letter-spacing: -1px; line-height: 1.2;
+        }
+        .set-description { font-size: 1.05rem; color: #636e72; max-width: 700px; margin: 0 auto 20px auto; line-height: 1.6; }
+        
+        .meta-badges { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-bottom: 25px; }
+        .badge {
+            display: inline-flex; align-items: center; padding: 6px 14px;
+            border-radius: 20px; font-size: 0.85rem; font-weight: 500;
+            background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            border: 1px solid rgba(0,0,0,0.05); color: #555; transition: transform 0.2s;
+        }
         .badge:hover { transform: translateY(-2px); }
         .badge i { margin-right: 6px; color: #6c5ce7; }
         .badge.category { background: #eef2ff; color: #4338ca; border-color: #e0e7ff; }
         .badge.user { background: #fff1f2; color: #be123c; border-color: #ffe4e6; }
         .badge.count { background: #ecfdf5; color: #047857; border-color: #d1fae5; }
 
-        /* --- PUANLAMA & ÖZET KUTUSU --- */
         .stats-bar {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            background: #fff;
-            padding: 15px 30px;
-            border-radius: 16px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.04);
-            border: 1px solid rgba(0,0,0,0.03);
-            margin-bottom: 30px;
-            flex-wrap: wrap;
-            gap: 20px;
+            display: flex; align-items: center; justify-content: space-between;
+            background: #fff; padding: 15px 30px; border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.04); border: 1px solid rgba(0,0,0,0.03);
+            margin-bottom: 30px; flex-wrap: wrap; gap: 20px;
         }
+        .rating-display { display: flex; align-items: center; gap: 15px; }
+        .rating-number { font-size: 2rem; font-weight: 800; color: #2d3436; }
+        .rating-meta { display: flex; flex-direction: column; font-size: 0.8rem; color: #b2bec3; }
 
-        .rating-display {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
-        .rating-number {
-            font-size: 2rem;
-            font-weight: 800;
-            color: #2d3436;
-        }
-        
-        .rating-meta {
-            display: flex;
-            flex-direction: column;
-            font-size: 0.8rem;
-            color: #b2bec3;
-        }
-
-        /* Yıldızlar */
-        .star-rating {
-            direction: rtl;
-            display: inline-flex;
-            font-size: 20px;
-        }
+        .star-rating { direction: rtl; display: inline-flex; font-size: 20px; }
         .star-rating input { display: none; }
         .star-rating label { color: #e0e0e0; cursor: pointer; transition: color 0.2s; padding: 0 1px; }
         .star-rating:not(.disabled) input:checked ~ label,
@@ -244,45 +205,22 @@ while($row = $result_cards->fetch_assoc()) {
 
         .btn-rate-save {
             background: #2d3436; color: #fff; border: none; padding: 6px 12px;
-            border-radius: 8px; font-size: 0.75rem; cursor: pointer; margin-left: 10px;
-            transition: 0.2s;
+            border-radius: 8px; font-size: 0.75rem; cursor: pointer; margin-left: 10px; transition: 0.2s;
         }
         .btn-rate-save:hover { background: #000; }
 
-        /* --- AKSİYON BUTONLARI --- */
-        .action-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-            margin-top: 0;
-            /* Puan kutusunun sağına alabiliriz veya altında tutabiliriz, burada altında tuttum */
-        }
-        
-        @media (min-width: 768px) {
-            .stats-bar { justify-content: space-between; }
-        }
+        .action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 0; }
+        @media (min-width: 768px) { .stats-bar { justify-content: space-between; } }
 
         .btn-hero {
-            padding: 18px 20px;
-            border-radius: 14px;
-            font-size: 1rem;
-            font-weight: 600;
-            text-decoration: none;
-            color: #fff;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 12px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            position: relative;
-            overflow: hidden;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            padding: 18px 20px; border-radius: 14px; font-size: 1rem; font-weight: 600;
+            text-decoration: none; color: #fff; display: flex; align-items: center;
+            justify-content: center; gap: 12px; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         }
-        
         .btn-hero::before {
             content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(255,255,255,0.1); transform: translateX(-100%);
-            transition: transform 0.3s;
+            background: rgba(255,255,255,0.1); transform: translateX(-100%); transition: transform 0.3s;
         }
         .btn-hero:hover::before { transform: translateX(0); }
         .btn-hero:hover { transform: translateY(-3px); box-shadow: 0 8px 25px rgba(0,0,0,0.15); }
@@ -290,56 +228,33 @@ while($row = $result_cards->fetch_assoc()) {
         .hero-write { background: linear-gradient(135deg, #6c5ce7, #8e44ad); }
         .hero-quiz { background: linear-gradient(135deg, #00b894, #00cec9); }
 
-        /* Admin Butonları */
         .admin-controls {
-            display: flex;
-            justify-content: center;
-            gap: 12px;
-            margin-top: 25px;
-            padding-top: 20px;
-            border-top: 1px solid rgba(0,0,0,0.05);
+            display: flex; justify-content: center; gap: 12px; margin-top: 25px;
+            padding-top: 20px; border-top: 1px solid rgba(0,0,0,0.05);
         }
-        
         .btn-sub {
-            padding: 8px 16px;
-            border-radius: 8px;
-            font-size: 0.85rem;
-            text-decoration: none;
-            color: #555;
-            background: #f8f9fa;
-            border: 1px solid #dfe6e9;
-            transition: 0.2s;
+            padding: 8px 16px; border-radius: 8px; font-size: 0.85rem; text-decoration: none;
+            color: #555; background: #f8f9fa; border: 1px solid #dfe6e9; transition: 0.2s;
             display: flex; align-items: center; gap: 6px;
         }
         .btn-sub:hover { background: #e2e6ea; color: #333; }
         .btn-sub.del:hover { background: #ffebee; color: #c62828; border-color: #ffcdd2; }
 
-        /* --- FLASHCARD --- */
         .flashcard-container { display: flex; justify-content: center; align-items: center; perspective: 1000px; margin: 50px 0; }
         .flashcard { 
-            width: 100%; max-width: 650px; height: 380px; 
-            position: relative; transform-style: preserve-3d; 
-            transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1); cursor: pointer; 
+            width: 100%; max-width: 650px; height: 380px; position: relative;
+            transform-style: preserve-3d; transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1); cursor: pointer; 
         }
         .flashcard.flipped { transform: rotateY(180deg); }
         .flashcard-face { 
-            position: absolute; width: 100%; height: 100%; 
-            backface-visibility: hidden; -webkit-backface-visibility: hidden; 
-            display: flex; align-items: center; justify-content: center; 
-            text-align: center; font-size: 26px; font-weight: 500; 
-            padding: 40px; box-sizing: border-box; border-radius: 24px; 
-            box-shadow: 0 15px 35px rgba(0,0,0,0.1); 
+            position: absolute; width: 100%; height: 100%; backface-visibility: hidden;
+            -webkit-backface-visibility: hidden; display: flex; align-items: center;
+            justify-content: center; text-align: center; font-size: 26px; font-weight: 500;
+            padding: 40px; box-sizing: border-box; border-radius: 24px; box-shadow: 0 15px 35px rgba(0,0,0,0.1); 
         }
-        .flashcard-front { 
-            background: #fff; color: #2d3436; 
-            border: 1px solid rgba(0,0,0,0.05);
-        }
-        .flashcard-back { 
-            background: #2d3436; color: #fff; 
-            transform: rotateY(180deg); 
-        }
+        .flashcard-front { background: #fff; color: #2d3436; border: 1px solid rgba(0,0,0,0.05); }
+        .flashcard-back { background: #2d3436; color: #fff; transform: rotateY(180deg); }
         
-        /* Renkli Temalar için CSS (themes tablosundan gelen css_class) */
         .bg-default { background: #2d3436; }
         .bg-blue { background: linear-gradient(135deg, #0984e3, #74b9ff); }
         .bg-red { background: linear-gradient(135deg, #d63031, #ff7675); }
@@ -347,21 +262,17 @@ while($row = $result_cards->fetch_assoc()) {
 
         .controls { display: flex; justify-content: center; align-items: center; gap: 20px; margin-bottom: 50px; }
         .nav-btn {
-            background: #fff; border: 1px solid #dfe6e9; color: #2d3436;
-            width: 50px; height: 50px; border-radius: 50%;
-            cursor: pointer; transition: 0.2s; font-size: 18px;
-            display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            background: #fff; border: 1px solid #dfe6e9; color: #2d3436; width: 50px; height: 50px;
+            border-radius: 50%; cursor: pointer; transition: 0.2s; font-size: 18px;
+            display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.05);
         }
         .nav-btn:hover { background: #2d3436; color: white; transform: scale(1.1); }
         #cardCounter { font-weight: 600; color: #b2bec3; letter-spacing: 1px; }
 
-        /* --- YORUMLAR --- */
         .comments-section { margin-top: 40px; padding-top: 30px; border-top: 1px solid rgba(0,0,0,0.06); }
         .comment-box { 
-            background: #fff; border-radius: 12px; padding: 20px; 
-            margin-bottom: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.03); 
-            border: 1px solid #f1f2f6;
+            background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.03); border: 1px solid #f1f2f6;
         }
         .comment-header { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.9rem; }
         .comment-user { font-weight: 700; color: #2d3436; }
@@ -369,13 +280,11 @@ while($row = $result_cards->fetch_assoc()) {
         .comment-text { color: #636e72; line-height: 1.5; }
         
         textarea.modern-input {
-            width: 100%; border: 1px solid #dfe6e9; border-radius: 12px;
-            padding: 15px; font-family: inherit; resize: none; outline: none;
-            background: #fdfdfd; transition: 0.2s;
+            width: 100%; border: 1px solid #dfe6e9; border-radius: 12px; padding: 15px;
+            font-family: inherit; resize: none; outline: none; background: #fdfdfd; transition: 0.2s;
         }
         textarea.modern-input:focus { border-color: #6c5ce7; background: #fff; }
 
-        /* Responsive */
         @media (max-width: 600px) {
             .view-wrapper { width: 95%; padding: 20px; }
             .set-title { font-size: 2rem; }
@@ -454,7 +363,7 @@ while($row = $result_cards->fetch_assoc()) {
                 <a href="edit_set.php?set_id=<?php echo $set_id; ?>" class="btn-sub">
                     <i class="fa fa-edit"></i> Düzenle
                 </a>
-                <a href="delete_set.php?set_id=<?php echo $set_id; ?>" onclick="return confirm('Silmek istediğine emin misin?');" class="btn-sub del">
+                <a href="view_set.php?set_id=<?php echo $set_id; ?>&action=delete" onclick="return confirm('Bu seti tamamen silmek istediğine emin misin? Bu işlem geri alınamaz!');" class="btn-sub del">
                     <i class="fa fa-trash"></i> Sil
                 </a>
             <?php endif; ?>
@@ -555,12 +464,11 @@ while($row = $result_cards->fetch_assoc()) {
         if (cards.length === 0) return;
         flashcard.classList.remove("flipped");
         
-        // Kart değişirken hafif bir animasyon
         setTimeout(() => {
             frontText.textContent = cards[currentIndex].term;
             back.textContent = cards[currentIndex].defination;
             counter.textContent = (currentIndex + 1) + " / " + cards.length;
-        }, 300); // Dönme süresinin yarısında içeriği değiştir (daha doğal görünür)
+        }, 300);
     }
 
     function flipCard() { flashcard.classList.toggle("flipped"); }
@@ -579,7 +487,6 @@ while($row = $result_cards->fetch_assoc()) {
         } 
     }
     
-    // Klavye kontrolleri (Kullanılabilirlik için)
     document.addEventListener('keydown', function(event) {
         if(event.key === "ArrowRight") nextCard();
         if(event.key === "ArrowLeft") prevCard();
