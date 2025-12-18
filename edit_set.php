@@ -308,7 +308,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <script>
             setTimeout(() => { 
                 // set_id değişkenini PHP'den JS'ye aktarıyoruz
-                window.location.href = "view_set.php?id=<?= $set_id ?>"; 
+                window.location.href = "view_set.php?set_id=<?= $set_id ?>"; 
             }, 2000);
         </script>
 
