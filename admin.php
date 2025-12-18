@@ -1,6 +1,9 @@
 <?php
+ob_start(); // 1. Çıktı tamponlamayı başlatır (Header hatalarını önler)
+session_start(); // Oturum başlatma (connectDB'de yoksa diye garanti olsun)
 include "connectDB.php";
-include "menu.php"; 
+
+// NOT: include "menu.php"; BURADAN KALDIRILDI. AŞAĞIYA ALINDI.
 
 // --- GÜVENLİK KONTROLLERİ ---
 if (!isset($_SESSION['user_id'])) {
@@ -39,21 +42,21 @@ if (isset($_GET['delete_set'])) {
 
 // 3. Kategori Silme
 if (isset($_GET['delete_category'])) {
-    $del_cat_id = intval($_GET['delete_category']);
-    $conn->query("DELETE FROM categories WHERE category_id = $del_cat_id");
+    $del_catid = intval($_GET['delete_category']);
+    $conn->query("DELETE FROM categories WHERE category_id = $del_catid");
     header("Location: admin.php?msg=cat_deleted");
     exit;
 }
 
 // 4. İstek/Öneri Silme
 if (isset($_GET['delete_suggestion'])) {
-    $del_sug_id = intval($_GET['delete_suggestion']);
-    $conn->query("DELETE FROM suggestions WHERE id = $del_sug_id");
+    $del_sugid = intval($_GET['delete_suggestion']);
+    $conn->query("DELETE FROM suggestions WHERE sug_id = $del_sugid");
     header("Location: admin.php?msg=suggestion_deleted");
     exit;
 }
 
-// 5. Yorum Silme (YENİ)
+// 5. Yorum Silme
 if (isset($_GET['delete_comment'])) {
     $del_com_id = intval($_GET['delete_comment']);
     $conn->query("DELETE FROM comments WHERE comment_id = $del_com_id");
@@ -61,7 +64,7 @@ if (isset($_GET['delete_comment'])) {
     exit;
 }
 
-// 6. Puanlama Silme (YENİ)
+// 6. Puanlama Silme
 if (isset($_GET['delete_rating'])) {
     $del_rate_id = intval($_GET['delete_rating']);
     $conn->query("DELETE FROM set_ratings WHERE rating_id = $del_rate_id");
@@ -71,6 +74,16 @@ if (isset($_GET['delete_rating'])) {
 
 // --- EKLEME İŞLEMLERİ ---
 if (isset($_POST['add_category'])) {
+    $cat_name = trim($_POST['cat_name']);
+    if (!empty($cat_name)) {
+        $stmt = $conn->prepare("INSERT INTO categories (name) VALUES (?)");
+        $stmt->bind_param("s", $cat_name);
+        $stmt->execute();
+        header("Location: admin.php?msg=cat_added");
+        exit;
+    }
+} else if (isset($_POST['cat_name'])) { 
+    // Eski koddaki name="cat_name" kullanıldıysa burası çalışır
     $cat_name = trim($_POST['cat_name']);
     if (!empty($cat_name)) {
         $stmt = $conn->prepare("INSERT INTO categories (name) VALUES (?)");
@@ -119,13 +132,12 @@ $total_sug_stat = $conn->query("SELECT COUNT(*) as c FROM suggestions")->fetch_a
 $total_sug_pages = ceil($total_sug_stat / $limit_sug);
 $suggestions = $conn->query("SELECT suggestions.*, users.username FROM suggestions LEFT JOIN users ON suggestions.user_id = users.user_id ORDER BY suggestions.created_at DESC LIMIT $limit_sug OFFSET $offset_sug");
 
-// --- D. YORUMLAR (YENİ) ---
+// --- D. YORUMLAR ---
 $limit_com = 5;
 $com_page = isset($_GET['com_page']) ? max(1, (int)$_GET['com_page']) : 1;
 $offset_com = ($com_page - 1) * $limit_com;
 $total_com_stat = $conn->query("SELECT COUNT(*) as c FROM comments")->fetch_assoc()['c'];
 $total_com_pages = ceil($total_com_stat / $limit_com);
-// Yorumları çekerken set başlığını ve kullanıcı adını da alıyoruz
 $comments = $conn->query("
     SELECT comments.*, users.username, sets.title AS set_title 
     FROM comments 
@@ -135,13 +147,12 @@ $comments = $conn->query("
     LIMIT $limit_com OFFSET $offset_com
 ");
 
-// --- E. PUANLAMALAR (YENİ) ---
+// --- E. PUANLAMALAR ---
 $limit_rate = 5;
 $rate_page = isset($_GET['rate_page']) ? max(1, (int)$_GET['rate_page']) : 1;
 $offset_rate = ($rate_page - 1) * $limit_rate;
 $total_rate_stat = $conn->query("SELECT COUNT(*) as c FROM set_ratings")->fetch_assoc()['c'];
 $total_rate_pages = ceil($total_rate_stat / $limit_rate);
-// Puanları çekerken set başlığı ve kullanıcı adı
 $ratings = $conn->query("
     SELECT set_ratings.*, users.username, sets.title AS set_title 
     FROM set_ratings 
@@ -157,14 +168,14 @@ $total_sets_stat = $conn->query("SELECT COUNT(*) as c FROM sets")->fetch_assoc()
 $total_cards = $conn->query("SELECT COUNT(*) as c FROM cards")->fetch_assoc()['c'];
 $categories = $conn->query("SELECT * FROM categories");
 
-// Yıldız Oluşturma Fonksiyonu (Görsellik için)
+// Yıldız Fonksiyonu
 function displayStars($rating) {
     $stars = "";
     for ($i = 1; $i <= 5; $i++) {
         if ($i <= $rating) {
-            $stars .= "★"; // Dolu yıldız
+            $stars .= "★"; 
         } else {
-            $stars .= "☆"; // Boş yıldız
+            $stars .= "☆"; 
         }
     }
     return "<span style='color:#f1c40f; font-size:16px;'>$stars</span>";
@@ -179,53 +190,25 @@ function displayStars($rating) {
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <style>
-
-
-        .container {
-            width: 90%;
-            max-width: 1100px; /* Biraz genişlettik */
-            margin: 40px auto;
-        }
-
-        /* Glassmorphism Kartları */
+        .container { width: 90%; max-width: 1100px; margin: 40px auto; }
         .glass-card {
-            background: rgba(255, 255, 255, 0.35);
-            backdrop-filter: blur(15px);
-            border-radius: 16px;
-            border: 1px solid rgba(255, 255, 255, 0.4);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            padding: 30px;
-            margin-bottom: 30px;
+            background: rgba(255, 255, 255, 0.35); backdrop-filter: blur(15px);
+            border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.4);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1); padding: 30px; margin-bottom: 30px;
         }
-
         h1, h2 { color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-top: 0; }
         h2 { color: #333; font-size: 1.5rem; border-bottom: 2px solid rgba(255,255,255,0.5); padding-bottom: 10px; margin-bottom: 20px; }
-
-        /* İstatistik Kutuları */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 15px;
-            margin-bottom: 30px;
-        }
-
-        .stat-box {
-            background: rgba(255,255,255,0.6);
-            padding: 20px;
-            border-radius: 12px;
-            text-align: center;
-        }
-
+        
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 30px; }
+        .stat-box { background: rgba(255,255,255,0.6); padding: 20px; border-radius: 12px; text-align: center; }
         .stat-number { font-size: 2rem; font-weight: bold; color: #6c5ce7; }
         .stat-label { font-size: 0.9rem; color: #555; margin-top: 5px; }
 
-        /* Tablolar */
         table { width: 100%; border-collapse: collapse; margin-top: 10px; background: rgba(255,255,255,0.4); border-radius: 8px; overflow: hidden; }
         th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid rgba(0,0,0,0.05); }
         th { background: rgba(0,0,0,0.05); font-weight: 600; color: #444; }
         tr:hover { background: rgba(255,255,255,0.5); }
 
-        /* Butonlar & Etiketler */
         .btn-del { background: #ff7675; color: white; padding: 5px 10px; border-radius: 5px; text-decoration: none; font-size: 12px; transition: 0.3s; }
         .btn-del:hover { background: #d63031; }
         .btn-view { background: #74b9ff; color: white; padding: 5px 10px; border-radius: 5px; text-decoration: none; font-size: 12px; }
@@ -233,7 +216,6 @@ function displayStars($rating) {
         .type-badge { padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; text-transform: uppercase; color: white; }
         .type-oneri { background: #f1c40f; } .type-istek { background: #3498db; } .type-hata { background: #e74c3c; }
 
-        /* Formlar */
         .add-cat-form { display: flex; gap: 10px; margin-bottom: 20px; }
         .add-cat-form input, .search-form input { flex: 1; padding: 10px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.1); outline: none; }
         .add-cat-form button, .search-form button { padding: 10px 20px; background: #00b894; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
@@ -245,15 +227,18 @@ function displayStars($rating) {
         .cat-tag:hover { background: #fff; border-color: rgba(0,0,0,0.1); transform: translateY(-2px); }
         .cat-del-btn { background: #ff7675; color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; justify-content: center; align-items: center; text-decoration: none; font-size: 12px; font-weight: bold; }
 
-        /* Pagination */
         .pagination { display: flex; justify-content: center; align-items: center; margin-top: 20px; gap: 10px; }
         .page-btn { background: rgba(255,255,255,0.5); padding: 8px 15px; border-radius: 8px; text-decoration: none; color: #333; font-weight: 600; transition: 0.2s; border: 1px solid rgba(255,255,255,0.6); }
         .page-btn:hover { background: #fff; transform: translateY(-2px); }
         .page-info { font-size: 14px; color: #555; font-weight: bold; }
-
     </style>
 </head>
 <body>
+
+<?php 
+// 2. MENÜ BURAYA ALINDI. HTML başladığı için artık güvenli.
+include "menu.php"; 
+?>
 
 <div class="container">
     
@@ -263,30 +248,12 @@ function displayStars($rating) {
     </div>
 
     <div class="stats-grid">
-        <div class="stat-box glass-card" style="margin:0;">
-            <div class="stat-number"><?php echo $total_users_stat; ?></div>
-            <div class="stat-label">Kullanıcı</div>
-        </div>
-        <div class="stat-box glass-card" style="margin:0;">
-            <div class="stat-number"><?php echo $total_sets_stat; ?></div>
-            <div class="stat-label">Set</div>
-        </div>
-        <div class="stat-box glass-card" style="margin:0;">
-            <div class="stat-number"><?php echo $total_cards; ?></div>
-            <div class="stat-label">Kart</div>
-        </div>
-        <div class="stat-box glass-card" style="margin:0;">
-            <div class="stat-number"><?php echo $total_sug_stat; ?></div>
-            <div class="stat-label">İstek/Öneri</div>
-        </div>
-        <div class="stat-box glass-card" style="margin:0;">
-            <div class="stat-number"><?php echo $total_com_stat; ?></div>
-            <div class="stat-label">Yorum</div>
-        </div>
-        <div class="stat-box glass-card" style="margin:0;">
-            <div class="stat-number"><?php echo $total_rate_stat; ?></div>
-            <div class="stat-label">Puanlama</div>
-        </div>
+        <div class="stat-box glass-card" style="margin:0;"><div class="stat-number"><?php echo $total_users_stat; ?></div><div class="stat-label">Kullanıcı</div></div>
+        <div class="stat-box glass-card" style="margin:0;"><div class="stat-number"><?php echo $total_sets_stat; ?></div><div class="stat-label">Set</div></div>
+        <div class="stat-box glass-card" style="margin:0;"><div class="stat-number"><?php echo $total_cards; ?></div><div class="stat-label">Kart</div></div>
+        <div class="stat-box glass-card" style="margin:0;"><div class="stat-number"><?php echo $total_sug_stat; ?></div><div class="stat-label">İstek/Öneri</div></div>
+        <div class="stat-box glass-card" style="margin:0;"><div class="stat-number"><?php echo $total_com_stat; ?></div><div class="stat-label">Yorum</div></div>
+        <div class="stat-box glass-card" style="margin:0;"><div class="stat-number"><?php echo $total_rate_stat; ?></div><div class="stat-label">Puanlama</div></div>
     </div>
 
     <div class="glass-card">
@@ -331,7 +298,9 @@ function displayStars($rating) {
                             </td>
                             <td><?php echo nl2br(htmlspecialchars($sug['message'])); ?></td>
                             <td style="font-size:12px;"><?php echo date("d.m H:i", strtotime($sug['created_at'])); ?></td>
-                            <td><a href="admin.php?delete_suggestion=<?php echo $sug['id']; ?>" class="btn-del" onclick="return confirm('Silinsin mi?')">Sil</a></td>
+                            <td>
+                                <a href="admin.php?delete_suggestion=<?php echo $sug['sug_id']; ?>" class="btn-del" onclick="return confirm('Silinsin mi?')">Sil</a>
+                            </td>
                         </tr>
                         <?php endwhile; ?>
                     <?php else: ?>
@@ -474,7 +443,7 @@ function displayStars($rating) {
                             <td><?php echo htmlspecialchars($s['username']); ?></td>
                             <td><?php echo date("d.m.Y", strtotime($s['created_at'])); ?></td>
                             <td>
-                                <a href="view_set.php?id=<?php echo $s['set_id']; ?>" target="_blank" class="btn-view">Git</a>
+                                <a href="view_set.php?set_id=<?php echo $s['set_id']; ?>" target="_blank" class="btn-view">Git</a>
                                 <a href="admin.php?delete_set=<?php echo $s['set_id']; ?>" class="btn-del" onclick="return confirm('Seti sil?')">Sil</a>
                             </td>
                         </tr>
