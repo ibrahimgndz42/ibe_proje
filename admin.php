@@ -43,6 +43,26 @@ if (isset($_GET['delete_set'])) {
 // 3. Kategori Silme
 if (isset($_GET['delete_category'])) {
     $del_catid = intval($_GET['delete_category']);
+
+    // Önce "Genel" kategorisinin ID'sini veritabanından bulalım
+    $genel_cat_query = $conn->query("SELECT category_id FROM categories WHERE name = 'Genel' LIMIT 1");
+    
+    if ($genel_cat_query->num_rows > 0) {
+        $genel_cat = $genel_cat_query->fetch_assoc();
+        $genel_id = $genel_cat['category_id'];
+
+        // KURAL 1: Eğer silinmek istenen kategori zaten "Genel" ise işlemi durdur.
+        if ($del_catid == $genel_id) {
+            header("Location: admin.php?msg=error_cannot_delete_genel");
+            exit;
+        }
+
+        // KURAL 2: Silinecek kategorideki setleri "Genel" kategorisine taşı (UPDATE)
+        // Setlerin category_id'sini, silinecek ID'den Genel ID'ye çeviriyoruz.
+        $conn->query("UPDATE sets SET category_id = $genel_id WHERE category_id = $del_catid");
+    }
+
+    // Artık kategoriyi güvenle silebiliriz (İçindeki setler taşındı)
     $conn->query("DELETE FROM categories WHERE category_id = $del_catid");
     header("Location: admin.php?msg=cat_deleted");
     exit;
@@ -266,7 +286,11 @@ include "menu.php";
             <?php while($cat = $categories->fetch_assoc()): ?>
                 <div class="cat-tag">
                     <?php echo htmlspecialchars($cat['name']); ?>
-                    <a href="admin.php?delete_category=<?php echo $cat['category_id']; ?>" class="cat-del-btn" onclick="return confirm('Kategoriyi silmek istiyor musunuz?')">✕</a>
+                    
+                    <?php if($cat['name'] !== 'Genel'): ?>
+                        <a href="admin.php?delete_category=<?php echo $cat['category_id']; ?>" class="cat-del-btn" onclick="return confirm('Bu kategoriyi silmek istiyor musunuz? İçindeki setler Genel kategorisine taşınacak.')">✕</a>
+                    <?php endif; ?>
+                    
                 </div>
             <?php endwhile; ?>
         </div>

@@ -124,7 +124,7 @@ $result = $conn->query($sql);
         .meta-row { margin-top: auto; display: flex; justify-content: space-between; font-size: 12px; color: #666; border-top: 1px solid rgba(0,0,0,0.05); padding-top: 10px; }
         .creator { font-weight: 600; color: #444; }
         .date { opacity: 0.8; }
-        .empty-msg { grid-column: 1 / -1; text-align: center; padding: 40px; color: rgba(255,255,255,0.8); font-size: 18px; background: rgba(255,255,255,0.1); border-radius: 16px; border: 1px dashed rgba(255,255,255,0.3); }
+        .empty-msg { grid-column: 1 / -1; text-align: center; padding: 40px; color: #333; font-size: 18px; background: rgba(255,255,255,0.1); border-radius: 16px; border: 1px dashed rgba(255,255,255,0.3); }
 
     </style>
 </head>
