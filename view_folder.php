@@ -2,12 +2,12 @@
 include "connectDB.php";
 include "session_check.php";
 
-if (!isset($_GET['id'])) {
+if (!isset($_GET['folder_id'])) {
     header("Location: folders.php");
     exit;
 }
 
-$folder_id = intval($_GET['id']);
+$folder_id = intval($_GET['folder_id']);
 $user_id = $_SESSION['user_id'];
 
 // Klasör bilgisini çek
@@ -35,7 +35,7 @@ if (isset($_GET['remove_set'])) {
     $remove_set_id = intval($_GET['remove_set']);
     $sql_remove = "DELETE FROM folder_sets WHERE folder_id = $folder_id AND set_id = $remove_set_id";
     $conn->query($sql_remove);
-    header("Location: view_folder.php?id=$folder_id");
+    header("Location: view_folder.php?folder_id=$folder_id");
     exit;
 }
 
@@ -282,7 +282,7 @@ $res_sets = $conn->query($sql_sets);
                     <?php echo htmlspecialchars($folder['name']); ?>
                 </div>
 
-                <a href="view_folder.php?id=<?php echo $folder_id; ?>&delete=true" 
+                <a href="view_folder.php?folder_id=<?php echo $folder_id; ?>&delete=true" 
                    class="delete-folder-btn"
                    onclick="return confirm('Bu klasörü silmek istediğine emin misin? (Setler silinmez)');">
                    🗑 Klasörü Sil
@@ -295,7 +295,7 @@ $res_sets = $conn->query($sql_sets);
                         
                         <div style="position: relative;">
                             
-                            <a href="view_set.php?id=<?php echo $row['set_id']; ?>" class="set-card">
+                            <a href="view_set.php?set_id=<?php echo $row['set_id']; ?>" class="set-card">
                                 <?php if(!empty($row['category'])): ?>
                                     <span class="category-tag"><?php echo htmlspecialchars($row['category']); ?></span>
                                 <?php else: ?>
@@ -316,7 +316,7 @@ $res_sets = $conn->query($sql_sets);
                                 </div>
                             </a>
 
-                            <a href="view_folder.php?id=<?php echo $folder_id; ?>&remove_set=<?php echo $row['set_id']; ?>" 
+                            <a href="view_folder.php?folder_id=<?php echo $folder_id; ?>&remove_set=<?php echo $row['set_id']; ?>" 
                                class="remove-icon"
                                onclick="return confirm('Bu seti klasörden çıkarmak istiyor musun?');"
                                title="Listeden Çıkar">

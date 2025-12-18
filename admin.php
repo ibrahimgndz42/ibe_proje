@@ -1,9 +1,7 @@
 <?php
-ob_start(); // 1. Çıktı tamponlamayı başlatır (Header hatalarını önler)
-session_start(); // Oturum başlatma (connectDB'de yoksa diye garanti olsun)
+ob_start(); 
+session_start(); 
 include "connectDB.php";
-
-// NOT: include "menu.php"; BURADAN KALDIRILDI. AŞAĞIYA ALINDI.
 
 // --- GÜVENLİK KONTROLLERİ ---
 if (!isset($_SESSION['user_id'])) {
@@ -27,7 +25,7 @@ if (isset($_GET['delete_user'])) {
     $del_uid = intval($_GET['delete_user']);
     if ($del_uid != $my_id) { 
         $conn->query("DELETE FROM users WHERE user_id = $del_uid");
-        header("Location: admin.php?msg=user_deleted");
+        header("Location: admin.php?msg=user_deleted&open=users");
         exit;
     }
 }
@@ -35,34 +33,35 @@ if (isset($_GET['delete_user'])) {
 // 2. Set Silme
 if (isset($_GET['delete_set'])) {
     $del_sid = intval($_GET['delete_set']);
+    
+    // Alt verileri temizle
+    $conn->query("DELETE FROM set_ratings WHERE set_id = $del_sid");
+    $conn->query("DELETE FROM cards WHERE set_id = $del_sid");
+    $conn->query("DELETE FROM comments WHERE set_id = $del_sid");
+    
+    // Seti sil
     $conn->query("DELETE FROM sets WHERE set_id = $del_sid");
-    header("Location: admin.php?msg=set_deleted");
+    
+    header("Location: admin.php?msg=set_deleted&open=sets");
     exit;
 }
 
 // 3. Kategori Silme
 if (isset($_GET['delete_category'])) {
     $del_catid = intval($_GET['delete_category']);
-
-    // Önce "Genel" kategorisinin ID'sini veritabanından bulalım
     $genel_cat_query = $conn->query("SELECT category_id FROM categories WHERE name = 'Genel' LIMIT 1");
     
     if ($genel_cat_query->num_rows > 0) {
         $genel_cat = $genel_cat_query->fetch_assoc();
         $genel_id = $genel_cat['category_id'];
 
-        // KURAL 1: Eğer silinmek istenen kategori zaten "Genel" ise işlemi durdur.
         if ($del_catid == $genel_id) {
             header("Location: admin.php?msg=error_cannot_delete_genel");
             exit;
         }
-
-        // KURAL 2: Silinecek kategorideki setleri "Genel" kategorisine taşı (UPDATE)
-        // Setlerin category_id'sini, silinecek ID'den Genel ID'ye çeviriyoruz.
         $conn->query("UPDATE sets SET category_id = $genel_id WHERE category_id = $del_catid");
     }
 
-    // Artık kategoriyi güvenle silebiliriz (İçindeki setler taşındı)
     $conn->query("DELETE FROM categories WHERE category_id = $del_catid");
     header("Location: admin.php?msg=cat_deleted");
     exit;
@@ -71,8 +70,8 @@ if (isset($_GET['delete_category'])) {
 // 4. İstek/Öneri Silme
 if (isset($_GET['delete_suggestion'])) {
     $del_sugid = intval($_GET['delete_suggestion']);
-    $conn->query("DELETE FROM suggestions WHERE sug_id = $del_sugid");
-    header("Location: admin.php?msg=suggestion_deleted");
+    $conn->query("DELETE FROM suggestions WHERE sug_id = $del_sugid"); 
+    header("Location: admin.php?msg=suggestion_deleted&open=suggestions");
     exit;
 }
 
@@ -80,7 +79,7 @@ if (isset($_GET['delete_suggestion'])) {
 if (isset($_GET['delete_comment'])) {
     $del_com_id = intval($_GET['delete_comment']);
     $conn->query("DELETE FROM comments WHERE comment_id = $del_com_id");
-    header("Location: admin.php?msg=comment_deleted");
+    header("Location: admin.php?msg=comment_deleted&open=comments");
     exit;
 }
 
@@ -88,22 +87,12 @@ if (isset($_GET['delete_comment'])) {
 if (isset($_GET['delete_rating'])) {
     $del_rate_id = intval($_GET['delete_rating']);
     $conn->query("DELETE FROM set_ratings WHERE rating_id = $del_rate_id");
-    header("Location: admin.php?msg=rating_deleted");
+    header("Location: admin.php?msg=rating_deleted&open=ratings");
     exit;
 }
 
 // --- EKLEME İŞLEMLERİ ---
 if (isset($_POST['add_category'])) {
-    $cat_name = trim($_POST['cat_name']);
-    if (!empty($cat_name)) {
-        $stmt = $conn->prepare("INSERT INTO categories (name) VALUES (?)");
-        $stmt->bind_param("s", $cat_name);
-        $stmt->execute();
-        header("Location: admin.php?msg=cat_added");
-        exit;
-    }
-} else if (isset($_POST['cat_name'])) { 
-    // Eski koddaki name="cat_name" kullanıldıysa burası çalışır
     $cat_name = trim($_POST['cat_name']);
     if (!empty($cat_name)) {
         $stmt = $conn->prepare("INSERT INTO categories (name) VALUES (?)");
@@ -119,6 +108,10 @@ if (isset($_POST['add_category'])) {
 // Global Arama Parametreleri
 $search_term = isset($_GET['search']) ? $conn->real_escape_string($_GET['search']) : "";
 $search_set_term = isset($_GET['search_set']) ? $conn->real_escape_string($_GET['search_set']) : "";
+// Yeni Arama Parametreleri
+$search_com_term = isset($_GET['search_com']) ? $conn->real_escape_string($_GET['search_com']) : "";
+$search_rate_term = isset($_GET['search_rate']) ? $conn->real_escape_string($_GET['search_rate']) : "";
+
 
 // --- A. KULLANICILAR ---
 $user_where_sql = "";
@@ -152,32 +145,66 @@ $total_sug_stat = $conn->query("SELECT COUNT(*) as c FROM suggestions")->fetch_a
 $total_sug_pages = ceil($total_sug_stat / $limit_sug);
 $suggestions = $conn->query("SELECT suggestions.*, users.username FROM suggestions LEFT JOIN users ON suggestions.user_id = users.user_id ORDER BY suggestions.created_at DESC LIMIT $limit_sug OFFSET $offset_sug");
 
-// --- D. YORUMLAR ---
+// --- D. YORUMLAR (GÜNCELLENDİ) ---
+$com_where_sql = "";
+if (!empty($search_com_term)) {
+    // Yorum metninde, kullanıcı adında veya set başlığında ara
+    $com_where_sql = " WHERE comments.comment_text LIKE '%$search_com_term%' OR users.username LIKE '%$search_com_term%' OR sets.title LIKE '%$search_com_term%' ";
+}
+
 $limit_com = 5;
 $com_page = isset($_GET['com_page']) ? max(1, (int)$_GET['com_page']) : 1;
 $offset_com = ($com_page - 1) * $limit_com;
-$total_com_stat = $conn->query("SELECT COUNT(*) as c FROM comments")->fetch_assoc()['c'];
+
+// Toplam sayıyı join ile alıyoruz ki arama düzgün çalışsın
+$total_com_stat = $conn->query("
+    SELECT COUNT(*) as c 
+    FROM comments 
+    LEFT JOIN users ON comments.user_id = users.user_id 
+    LEFT JOIN sets ON comments.set_id = sets.set_id 
+    $com_where_sql
+")->fetch_assoc()['c'];
+
 $total_com_pages = ceil($total_com_stat / $limit_com);
+
 $comments = $conn->query("
     SELECT comments.*, users.username, sets.title AS set_title 
     FROM comments 
     LEFT JOIN users ON comments.user_id = users.user_id 
     LEFT JOIN sets ON comments.set_id = sets.set_id 
+    $com_where_sql
     ORDER BY comments.created_at DESC 
     LIMIT $limit_com OFFSET $offset_com
 ");
 
-// --- E. PUANLAMALAR ---
+// --- E. PUANLAMALAR (GÜNCELLENDİ) ---
+$rate_where_sql = "";
+if (!empty($search_rate_term)) {
+    // Kullanıcı adı veya set başlığında ara
+    $rate_where_sql = " WHERE users.username LIKE '%$search_rate_term%' OR sets.title LIKE '%$search_rate_term%' ";
+}
+
 $limit_rate = 5;
 $rate_page = isset($_GET['rate_page']) ? max(1, (int)$_GET['rate_page']) : 1;
 $offset_rate = ($rate_page - 1) * $limit_rate;
-$total_rate_stat = $conn->query("SELECT COUNT(*) as c FROM set_ratings")->fetch_assoc()['c'];
+
+// Toplam sayıyı join ile al
+$total_rate_stat = $conn->query("
+    SELECT COUNT(*) as c 
+    FROM set_ratings 
+    LEFT JOIN users ON set_ratings.user_id = users.user_id 
+    LEFT JOIN sets ON set_ratings.set_id = sets.set_id 
+    $rate_where_sql
+")->fetch_assoc()['c'];
+
 $total_rate_pages = ceil($total_rate_stat / $limit_rate);
+
 $ratings = $conn->query("
     SELECT set_ratings.*, users.username, sets.title AS set_title 
     FROM set_ratings 
     LEFT JOIN users ON set_ratings.user_id = users.user_id 
     LEFT JOIN sets ON set_ratings.set_id = sets.set_id 
+    $rate_where_sql
     ORDER BY set_ratings.created_at DESC 
     LIMIT $limit_rate OFFSET $offset_rate
 ");
@@ -200,6 +227,21 @@ function displayStars($rating) {
     }
     return "<span style='color:#f1c40f; font-size:16px;'>$stars</span>";
 }
+
+// --- HANGİ TABLO AÇIK KALSIN? ---
+$open_tab = isset($_GET['open']) ? $_GET['open'] : '';
+
+// Sayfalama veya Arama varsa o sekmeyi açık tut
+if(isset($_GET['sug_page'])) $open_tab = 'suggestions';
+
+if(isset($_GET['com_page']) || isset($_GET['search_com'])) $open_tab = 'comments';
+
+if(isset($_GET['rate_page']) || isset($_GET['search_rate'])) $open_tab = 'ratings';
+
+if(isset($_GET['page']) || isset($_GET['search'])) $open_tab = 'users';
+
+if(isset($_GET['set_page']) || isset($_GET['search_set'])) $open_tab = 'sets';
+
 ?>
 
 <!DOCTYPE html>
@@ -211,20 +253,74 @@ function displayStars($rating) {
     <link rel="stylesheet" href="style.css">
     <style>
         .container { width: 90%; max-width: 1100px; margin: 40px auto; }
+
+        /* Glassmorphism Temel */
         .glass-card {
             background: rgba(255, 255, 255, 0.35); backdrop-filter: blur(15px);
             border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.4);
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1); padding: 30px; margin-bottom: 30px;
         }
-        h1, h2 { color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-top: 0; }
-        h2 { color: #333; font-size: 1.5rem; border-bottom: 2px solid rgba(255,255,255,0.5); padding-bottom: 10px; margin-bottom: 20px; }
         
+        /* Accordion (Açılır/Kapanır) Stili */
+        .accordion-wrapper {
+            background: rgba(255, 255, 255, 0.35); 
+            backdrop-filter: blur(15px);
+            border-radius: 16px; 
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.05);
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+
+        .accordion-header {
+            padding: 20px 25px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.4);
+            border-bottom: 1px solid rgba(255,255,255,0);
+            transition: all 0.3s ease;
+        }
+        
+        .accordion-header:hover {
+            background: rgba(255, 255, 255, 0.6);
+        }
+
+        .accordion-header h2 {
+            margin: 0;
+            font-size: 1.3rem;
+            color: #333;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .accordion-icon {
+            font-size: 1.2rem;
+            color: #555;
+            transition: transform 0.3s ease;
+        }
+
+        .accordion-content {
+            display: none; /* Varsayılan kapalı */
+            padding: 25px;
+            background: rgba(255, 255, 255, 0.2);
+            border-top: 1px solid rgba(255, 255, 255, 0.4);
+            animation: fadeIn 0.4s;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        /* Diğer UI Elemanları */
+        h1 { color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-top: 0; }
         .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 30px; }
         .stat-box { background: rgba(255,255,255,0.6); padding: 20px; border-radius: 12px; text-align: center; }
         .stat-number { font-size: 2rem; font-weight: bold; color: #6c5ce7; }
         .stat-label { font-size: 0.9rem; color: #555; margin-top: 5px; }
 
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; background: rgba(255,255,255,0.4); border-radius: 8px; overflow: hidden; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; background: rgba(255,255,255,0.6); border-radius: 8px; overflow: hidden; }
         th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid rgba(0,0,0,0.05); }
         th { background: rgba(0,0,0,0.05); font-weight: 600; color: #444; }
         tr:hover { background: rgba(255,255,255,0.5); }
@@ -255,25 +351,21 @@ function displayStars($rating) {
 </head>
 <body>
 
-<?php 
-// 2. MENÜ BURAYA ALINDI. HTML başladığı için artık güvenli.
-include "menu.php"; 
-?>
+<?php include "menu.php"; ?>
 
 <div class="container">
     
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-        <h1>🛡️ Admin Paneli</h1>
+        <h1 style="color: #111;">🛡️ Admin Paneli</h1>
         <a href="index.php" style="color: white; text-decoration: none; font-weight: bold; background: rgba(0,0,0,0.2); padding: 8px 16px; border-radius: 20px;">← Siteye Dön</a>
     </div>
 
     <div class="stats-grid">
-        <div class="stat-box glass-card" style="margin:0;"><div class="stat-number"><?php echo $total_users_stat; ?></div><div class="stat-label">Kullanıcı</div></div>
-        <div class="stat-box glass-card" style="margin:0;"><div class="stat-number"><?php echo $total_sets_stat; ?></div><div class="stat-label">Set</div></div>
-        <div class="stat-box glass-card" style="margin:0;"><div class="stat-number"><?php echo $total_cards; ?></div><div class="stat-label">Kart</div></div>
         <div class="stat-box glass-card" style="margin:0;"><div class="stat-number"><?php echo $total_sug_stat; ?></div><div class="stat-label">İstek/Öneri</div></div>
         <div class="stat-box glass-card" style="margin:0;"><div class="stat-number"><?php echo $total_com_stat; ?></div><div class="stat-label">Yorum</div></div>
         <div class="stat-box glass-card" style="margin:0;"><div class="stat-number"><?php echo $total_rate_stat; ?></div><div class="stat-label">Puanlama</div></div>
+        <div class="stat-box glass-card" style="margin:0;"><div class="stat-number"><?php echo $total_sets_stat; ?></div><div class="stat-label">Set</div></div>
+        <div class="stat-box glass-card" style="margin:0;"><div class="stat-number"><?php echo $total_users_stat; ?></div><div class="stat-label">Kullanıcı</div></div>
     </div>
 
     <div class="glass-card">
@@ -286,207 +378,265 @@ include "menu.php";
             <?php while($cat = $categories->fetch_assoc()): ?>
                 <div class="cat-tag">
                     <?php echo htmlspecialchars($cat['name']); ?>
-                    
                     <?php if($cat['name'] !== 'Genel'): ?>
                         <a href="admin.php?delete_category=<?php echo $cat['category_id']; ?>" class="cat-del-btn" onclick="return confirm('Bu kategoriyi silmek istiyor musunuz? İçindeki setler Genel kategorisine taşınacak.')">✕</a>
                     <?php endif; ?>
-                    
                 </div>
             <?php endwhile; ?>
         </div>
     </div>
 
-    <div class="glass-card">
-        <h2>📢 İstek & Öneriler</h2>
-        <div style="overflow-x: auto;">
-            <table>
-                <thead>
-                    <tr><th>Türü</th><th>Kimden</th><th>Mesaj</th><th>Tarih</th><th>İşlem</th></tr>
-                </thead>
-                <tbody>
-                    <?php if($suggestions->num_rows > 0): ?>
-                        <?php while($sug = $suggestions->fetch_assoc()): ?>
-                        <tr>
-                            <td>
-                                <?php 
-                                    $t = $sug['type'];
-                                    $cl = ($t=='istek')?'type-istek':(($t=='hata')?'type-hata':'type-oneri');
-                                    echo "<span class='type-badge $cl'>$t</span>";
-                                ?>
-                            </td>
-                            <td>
-                                <?php 
-                                if (!empty($sug['username'])) echo "👤 ".htmlspecialchars($sug['username']); 
-                                else echo "👽 ".htmlspecialchars($sug['guest_name'] ?? 'Anonim');
-                                ?>
-                            </td>
-                            <td><?php echo nl2br(htmlspecialchars($sug['message'])); ?></td>
-                            <td style="font-size:12px;"><?php echo date("d.m H:i", strtotime($sug['created_at'])); ?></td>
-                            <td>
-                                <a href="admin.php?delete_suggestion=<?php echo $sug['sug_id']; ?>" class="btn-del" onclick="return confirm('Silinsin mi?')">Sil</a>
-                            </td>
-                        </tr>
-                        <?php endwhile; ?>
-                    <?php else: ?>
-                        <tr><td colspan="5" style="text-align:center;">Kayıt yok.</td></tr>
-                    <?php endif; ?>
-                </tbody>
-            </table>
+    <div class="accordion-wrapper">
+        <div class="accordion-header" onclick="toggleSection('suggestions', 'icon-suggestions')">
+            <h2>📢 İstek & Öneriler</h2>
+            <span id="icon-suggestions" class="accordion-icon"><?php echo ($open_tab == 'suggestions') ? '▲' : '▼'; ?></span>
         </div>
-        <?php if($total_sug_pages > 1): ?>
-            <div class="pagination">
-                <?php if($sug_page > 1) echo "<a href='admin.php?sug_page=".($sug_page-1)."' class='page-btn'>«</a>"; ?>
-                <span class="page-info"><?php echo $sug_page." / ".$total_sug_pages; ?></span>
-                <?php if($sug_page < $total_sug_pages) echo "<a href='admin.php?sug_page=".($sug_page+1)."' class='page-btn'>»</a>"; ?>
+        <div id="suggestions" class="accordion-content" style="display: <?php echo ($open_tab == 'suggestions') ? 'block' : 'none'; ?>;">
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead>
+                        <tr><th>Türü</th><th>Kimden</th><th>Mesaj</th><th>Tarih</th><th>İşlem</th></tr>
+                    </thead>
+                    <tbody>
+                        <?php if($suggestions->num_rows > 0): ?>
+                            <?php while($sug = $suggestions->fetch_assoc()): ?>
+                            <tr>
+                                <td>
+                                    <?php 
+                                        $t = $sug['type'];
+                                        $cl = ($t=='istek')?'type-istek':(($t=='hata')?'type-hata':'type-oneri');
+                                        echo "<span class='type-badge $cl'>$t</span>";
+                                    ?>
+                                </td>
+                                <td>
+                                    <?php 
+                                    if (!empty($sug['username'])) echo "👤 ".htmlspecialchars($sug['username']); 
+                                    else echo "👽 ".htmlspecialchars($sug['guest_name'] ?? 'Anonim');
+                                    ?>
+                                </td>
+                                <td><?php echo nl2br(htmlspecialchars($sug['message'])); ?></td>
+                                <td style="font-size:12px;"><?php echo date("d.m H:i", strtotime($sug['created_at'])); ?></td>
+                                <td>
+                                    <a href="admin.php?delete_suggestion=<?php echo $sug['sug_id']; ?>" class="btn-del" onclick="return confirm('Silinsin mi?')">Sil</a>
+                                </td>
+                            </tr>
+                            <?php endwhile; ?>
+                        <?php else: ?>
+                            <tr><td colspan="5" style="text-align:center;">Kayıt yok.</td></tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
             </div>
-        <?php endif; ?>
+            <?php if($total_sug_pages > 1): ?>
+                <div class="pagination">
+                    <?php if($sug_page > 1) echo "<a href='admin.php?sug_page=".($sug_page-1)."&open=suggestions' class='page-btn'>«</a>"; ?>
+                    <span class="page-info"><?php echo $sug_page." / ".$total_sug_pages; ?></span>
+                    <?php if($sug_page < $total_sug_pages) echo "<a href='admin.php?sug_page=".($sug_page+1)."&open=suggestions' class='page-btn'>»</a>"; ?>
+                </div>
+            <?php endif; ?>
+        </div>
     </div>
 
-    <div class="glass-card">
-        <h2>💬 Son Yorumlar</h2>
-        <div style="overflow-x: auto;">
-            <table>
-                <thead>
-                    <tr><th>Kullanıcı</th><th>Set</th><th>Yorum</th><th>Tarih</th><th>İşlem</th></tr>
-                </thead>
-                <tbody>
-                    <?php if($comments->num_rows > 0): ?>
-                        <?php while($com = $comments->fetch_assoc()): ?>
-                        <tr>
-                            <td><b><?php echo htmlspecialchars($com['username'] ?? 'Silinmiş Üye'); ?></b></td>
-                            <td><?php echo htmlspecialchars($com['set_title'] ?? 'Silinmiş Set'); ?></td>
-                            <td><?php echo nl2br(htmlspecialchars($com['comment_text'])); ?></td>
-                            <td style="font-size:12px;"><?php echo date("d.m H:i", strtotime($com['created_at'])); ?></td>
-                            <td><a href="admin.php?delete_comment=<?php echo $com['comment_id']; ?>" class="btn-del" onclick="return confirm('Yorumu silmek istediğine emin misin?')">Sil</a></td>
-                        </tr>
-                        <?php endwhile; ?>
-                    <?php else: ?>
-                        <tr><td colspan="5" style="text-align:center;">Henüz yorum yok.</td></tr>
-                    <?php endif; ?>
-                </tbody>
-            </table>
+    <div class="accordion-wrapper">
+        <div class="accordion-header" onclick="toggleSection('comments', 'icon-comments')">
+            <h2>💬 Yorumlar</h2>
+            <span id="icon-comments" class="accordion-icon"><?php echo ($open_tab == 'comments') ? '▲' : '▼'; ?></span>
         </div>
-        <?php if($total_com_pages > 1): ?>
-            <div class="pagination">
-                <?php if($com_page > 1) echo "<a href='admin.php?com_page=".($com_page-1)."' class='page-btn'>«</a>"; ?>
-                <span class="page-info"><?php echo $com_page." / ".$total_com_pages; ?></span>
-                <?php if($com_page < $total_com_pages) echo "<a href='admin.php?com_page=".($com_page+1)."' class='page-btn'>»</a>"; ?>
+        <div id="comments" class="accordion-content" style="display: <?php echo ($open_tab == 'comments') ? 'block' : 'none'; ?>;">
+            
+            <form method="GET" class="search-form">
+                <input type="hidden" name="open" value="comments">
+                <input type="text" name="search_com" placeholder="Kullanıcı, Set veya Yorum Ara..." value="<?php echo htmlspecialchars($search_com_term); ?>">
+                <button type="submit">🔍 Ara</button>
+                <?php if(!empty($search_com_term)) echo "<a href='admin.php?open=comments' class='btn-clear'>Temizle</a>"; ?>
+            </form>
+
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead>
+                        <tr><th>Kullanıcı</th><th>Set</th><th>Yorum</th><th>Tarih</th><th>İşlem</th></tr>
+                    </thead>
+                    <tbody>
+                        <?php if($comments->num_rows > 0): ?>
+                            <?php while($com = $comments->fetch_assoc()): ?>
+                            <tr>
+                                <td><b><?php echo htmlspecialchars($com['username'] ?? 'Silinmiş Üye'); ?></b></td>
+                                <td><?php echo htmlspecialchars($com['set_title'] ?? 'Silinmiş Set'); ?></td>
+                                <td><?php echo nl2br(htmlspecialchars($com['comment_text'])); ?></td>
+                                <td style="font-size:12px;"><?php echo date("d.m H:i", strtotime($com['created_at'])); ?></td>
+                                <td><a href="admin.php?delete_comment=<?php echo $com['comment_id']; ?>" class="btn-del" onclick="return confirm('Yorumu silmek istediğine emin misin?')">Sil</a></td>
+                            </tr>
+                            <?php endwhile; ?>
+                        <?php else: ?>
+                            <tr><td colspan="5" style="text-align:center;">Sonuç yok.</td></tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
             </div>
-        <?php endif; ?>
+            <?php if($total_com_pages > 1): ?>
+                <div class="pagination">
+                    <?php $sp_com = !empty($search_com_term) ? "&search_com=".urlencode($search_com_term) : ""; ?>
+                    <?php if($com_page > 1) echo "<a href='admin.php?com_page=".($com_page-1).$sp_com."&open=comments' class='page-btn'>«</a>"; ?>
+                    <span class="page-info"><?php echo $com_page." / ".$total_com_pages; ?></span>
+                    <?php if($com_page < $total_com_pages) echo "<a href='admin.php?com_page=".($com_page+1).$sp_com."&open=comments' class='page-btn'>»</a>"; ?>
+                </div>
+            <?php endif; ?>
+        </div>
     </div>
 
-    <div class="glass-card">
-        <h2>⭐ Son Puanlamalar</h2>
-        <div style="overflow-x: auto;">
-            <table>
-                <thead>
-                    <tr><th>Kullanıcı</th><th>Set</th><th>Puan</th><th>Tarih</th><th>İşlem</th></tr>
-                </thead>
-                <tbody>
-                    <?php if($ratings->num_rows > 0): ?>
-                        <?php while($rate = $ratings->fetch_assoc()): ?>
-                        <tr>
-                            <td><b><?php echo htmlspecialchars($rate['username'] ?? 'Silinmiş Üye'); ?></b></td>
-                            <td><?php echo htmlspecialchars($rate['set_title'] ?? 'Silinmiş Set'); ?></td>
-                            <td><?php echo displayStars($rate['rating']); ?> (<?php echo $rate['rating']; ?>)</td>
-                            <td style="font-size:12px;"><?php echo date("d.m H:i", strtotime($rate['created_at'])); ?></td>
-                            <td><a href="admin.php?delete_rating=<?php echo $rate['rating_id']; ?>" class="btn-del" onclick="return confirm('Puanlamayı silmek istediğine emin misin?')">Sil</a></td>
-                        </tr>
-                        <?php endwhile; ?>
-                    <?php else: ?>
-                        <tr><td colspan="5" style="text-align:center;">Henüz puanlama yok.</td></tr>
-                    <?php endif; ?>
-                </tbody>
-            </table>
+    <div class="accordion-wrapper">
+        <div class="accordion-header" onclick="toggleSection('ratings', 'icon-ratings')">
+            <h2>⭐ Puanlamalar</h2>
+            <span id="icon-ratings" class="accordion-icon"><?php echo ($open_tab == 'ratings') ? '▲' : '▼'; ?></span>
         </div>
-        <?php if($total_rate_pages > 1): ?>
-            <div class="pagination">
-                <?php if($rate_page > 1) echo "<a href='admin.php?rate_page=".($rate_page-1)."' class='page-btn'>«</a>"; ?>
-                <span class="page-info"><?php echo $rate_page." / ".$total_rate_pages; ?></span>
-                <?php if($rate_page < $total_rate_pages) echo "<a href='admin.php?rate_page=".($rate_page+1)."' class='page-btn'>»</a>"; ?>
+        <div id="ratings" class="accordion-content" style="display: <?php echo ($open_tab == 'ratings') ? 'block' : 'none'; ?>;">
+            
+            <form method="GET" class="search-form">
+                <input type="hidden" name="open" value="ratings">
+                <input type="text" name="search_rate" placeholder="Kullanıcı veya Set Ara..." value="<?php echo htmlspecialchars($search_rate_term); ?>">
+                <button type="submit">🔍 Ara</button>
+                <?php if(!empty($search_rate_term)) echo "<a href='admin.php?open=ratings' class='btn-clear'>Temizle</a>"; ?>
+            </form>
+
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead>
+                        <tr><th>Kullanıcı</th><th>Set</th><th>Puan</th><th>Tarih</th><th>İşlem</th></tr>
+                    </thead>
+                    <tbody>
+                        <?php if($ratings->num_rows > 0): ?>
+                            <?php while($rate = $ratings->fetch_assoc()): ?>
+                            <tr>
+                                <td><b><?php echo htmlspecialchars($rate['username'] ?? 'Silinmiş Üye'); ?></b></td>
+                                <td><?php echo htmlspecialchars($rate['set_title'] ?? 'Silinmiş Set'); ?></td>
+                                <td><?php echo displayStars($rate['rating']); ?> (<?php echo $rate['rating']; ?>)</td>
+                                <td style="font-size:12px;"><?php echo date("d.m H:i", strtotime($rate['created_at'])); ?></td>
+                                <td><a href="admin.php?delete_rating=<?php echo $rate['rating_id']; ?>" class="btn-del" onclick="return confirm('Puanlamayı silmek istediğine emin misin?')">Sil</a></td>
+                            </tr>
+                            <?php endwhile; ?>
+                        <?php else: ?>
+                            <tr><td colspan="5" style="text-align:center;">Sonuç yok.</td></tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
             </div>
-        <?php endif; ?>
+            <?php if($total_rate_pages > 1): ?>
+                <div class="pagination">
+                    <?php $sp_rate = !empty($search_rate_term) ? "&search_rate=".urlencode($search_rate_term) : ""; ?>
+                    <?php if($rate_page > 1) echo "<a href='admin.php?rate_page=".($rate_page-1).$sp_rate."&open=ratings' class='page-btn'>«</a>"; ?>
+                    <span class="page-info"><?php echo $rate_page." / ".$total_rate_pages; ?></span>
+                    <?php if($rate_page < $total_rate_pages) echo "<a href='admin.php?rate_page=".($rate_page+1).$sp_rate."&open=ratings' class='page-btn'>»</a>"; ?>
+                </div>
+            <?php endif; ?>
+        </div>
     </div>
 
-    <div class="glass-card">
-        <h2>👥 Kullanıcılar</h2>
-        <form method="GET" class="search-form">
-            <input type="text" name="search" placeholder="ID veya Kullanıcı Adı..." value="<?php echo htmlspecialchars($search_term); ?>">
-            <button type="submit">🔍 Ara</button>
-            <?php if(!empty($search_term)) echo "<a href='admin.php' class='btn-clear'>Temizle</a>"; ?>
-        </form>
-        <div style="overflow-x: auto;">
-            <table>
-                <thead><tr><th>ID</th><th>Kullanıcı Adı</th><th>Email</th><th>Yetki</th><th>Kayıt</th><th>İşlem</th></tr></thead>
-                <tbody>
-                    <?php if($users->num_rows > 0): ?>
-                        <?php while($u = $users->fetch_assoc()): ?>
-                        <tr>
-                            <td>#<?php echo $u['user_id']; ?></td>
-                            <td><b><?php echo htmlspecialchars($u['username']); ?></b></td>
-                            <td><?php echo htmlspecialchars($u['email']); ?></td>
-                            <td><?php echo $u['is_admin'] ? '<span class="admin-badge">ADMIN</span>' : 'Üye'; ?></td>
-                            <td><?php echo date("d.m.Y", strtotime($u['created_at'])); ?></td>
-                            <td>
-                                <?php if($u['user_id'] != $my_id): ?>
-                                    <a href="admin.php?delete_user=<?php echo $u['user_id']; ?>" class="btn-del" onclick="return confirm('Kullanıcıyı ve setlerini sil?')">Sil</a>
-                                <?php else: ?><span>(Sen)</span><?php endif; ?>
-                            </td>
-                        </tr>
-                        <?php endwhile; ?>
-                    <?php else: ?><tr><td colspan="6" style="text-align:center;">Sonuç yok.</td></tr><?php endif; ?>
-                </tbody>
-            </table>
+    <div class="accordion-wrapper">
+        <div class="accordion-header" onclick="toggleSection('sets', 'icon-sets')">
+            <h2>📚 Setler</h2>
+            <span id="icon-sets" class="accordion-icon"><?php echo ($open_tab == 'sets') ? '▲' : '▼'; ?></span>
         </div>
-        <?php if($total_pages > 1): ?>
-            <div class="pagination">
-                <?php $sp = !empty($search_term) ? "&search=".urlencode($search_term) : ""; ?>
-                <?php if($page > 1) echo "<a href='admin.php?page=".($page-1).$sp."' class='page-btn'>«</a>"; ?>
-                <span class="page-info"><?php echo $page." / ".$total_pages; ?></span>
-                <?php if($page < $total_pages) echo "<a href='admin.php?page=".($page+1).$sp."' class='page-btn'>»</a>"; ?>
+        <div id="sets" class="accordion-content" style="display: <?php echo ($open_tab == 'sets') ? 'block' : 'none'; ?>;">
+            <form method="GET" class="search-form">
+                <input type="hidden" name="open" value="sets">
+                <input type="text" name="search_set" placeholder="Set veya Kullanıcı Adı..." value="<?php echo htmlspecialchars($search_set_term); ?>">
+                <button type="submit">🔍 Ara</button>
+                <?php if(!empty($search_set_term)) echo "<a href='admin.php?open=sets' class='btn-clear'>Temizle</a>"; ?>
+            </form>
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead><tr><th>ID</th><th>Başlık</th><th>Oluşturan</th><th>Tarih</th><th>İşlem</th></tr></thead>
+                    <tbody>
+                        <?php if($sets->num_rows > 0): ?>
+                            <?php while($s = $sets->fetch_assoc()): ?>
+                            <tr>
+                                <td>#<?php echo $s['set_id']; ?></td>
+                                <td><?php echo htmlspecialchars($s['title']); ?></td>
+                                <td><?php echo htmlspecialchars($s['username']); ?></td>
+                                <td><?php echo date("d.m.Y", strtotime($s['created_at'])); ?></td>
+                                <td>
+                                    <a href="view_set.php?set_id=<?php echo $s['set_id']; ?>" target="_blank" class="btn-view">Git</a>
+                                    <a href="admin.php?delete_set=<?php echo $s['set_id']; ?>" class="btn-del" onclick="return confirm('Seti sil?')">Sil</a>
+                                </td>
+                            </tr>
+                            <?php endwhile; ?>
+                        <?php else: ?><tr><td colspan="5" style="text-align:center;">Sonuç yok.</td></tr><?php endif; ?>
+                    </tbody>
+                </table>
             </div>
-        <?php endif; ?>
+            <?php if($total_set_pages > 1): ?>
+                <div class="pagination">
+                    <?php $ssp = !empty($search_set_term) ? "&search_set=".urlencode($search_set_term) : ""; ?>
+                    <?php if($set_page > 1) echo "<a href='admin.php?set_page=".($set_page-1).$ssp."&open=sets' class='page-btn'>«</a>"; ?>
+                    <span class="page-info"><?php echo $set_page." / ".$total_set_pages; ?></span>
+                    <?php if($set_page < $total_set_pages) echo "<a href='admin.php?set_page=".($set_page+1).$ssp."&open=sets' class='page-btn'>»</a>"; ?>
+                </div>
+            <?php endif; ?>
+        </div>
     </div>
 
-    <div class="glass-card">
-        <h2>📚 Setler</h2>
-        <form method="GET" class="search-form">
-            <input type="text" name="search_set" placeholder="Set veya Kullanıcı Adı..." value="<?php echo htmlspecialchars($search_set_term); ?>">
-            <button type="submit">🔍 Ara</button>
-            <?php if(!empty($search_set_term)) echo "<a href='admin.php' class='btn-clear'>Temizle</a>"; ?>
-        </form>
-        <div style="overflow-x: auto;">
-            <table>
-                <thead><tr><th>ID</th><th>Başlık</th><th>Oluşturan</th><th>Tarih</th><th>İşlem</th></tr></thead>
-                <tbody>
-                    <?php if($sets->num_rows > 0): ?>
-                        <?php while($s = $sets->fetch_assoc()): ?>
-                        <tr>
-                            <td>#<?php echo $s['set_id']; ?></td>
-                            <td><?php echo htmlspecialchars($s['title']); ?></td>
-                            <td><?php echo htmlspecialchars($s['username']); ?></td>
-                            <td><?php echo date("d.m.Y", strtotime($s['created_at'])); ?></td>
-                            <td>
-                                <a href="view_set.php?set_id=<?php echo $s['set_id']; ?>" target="_blank" class="btn-view">Git</a>
-                                <a href="admin.php?delete_set=<?php echo $s['set_id']; ?>" class="btn-del" onclick="return confirm('Seti sil?')">Sil</a>
-                            </td>
-                        </tr>
-                        <?php endwhile; ?>
-                    <?php else: ?><tr><td colspan="5" style="text-align:center;">Sonuç yok.</td></tr><?php endif; ?>
-                </tbody>
-            </table>
+    <div class="accordion-wrapper">
+        <div class="accordion-header" onclick="toggleSection('users', 'icon-users')">
+            <h2>👥 Kullanıcılar</h2>
+            <span id="icon-users" class="accordion-icon"><?php echo ($open_tab == 'users') ? '▲' : '▼'; ?></span>
         </div>
-        <?php if($total_set_pages > 1): ?>
-            <div class="pagination">
-                <?php $ssp = !empty($search_set_term) ? "&search_set=".urlencode($search_set_term) : ""; ?>
-                <?php if($set_page > 1) echo "<a href='admin.php?set_page=".($set_page-1).$ssp."' class='page-btn'>«</a>"; ?>
-                <span class="page-info"><?php echo $set_page." / ".$total_set_pages; ?></span>
-                <?php if($set_page < $total_set_pages) echo "<a href='admin.php?set_page=".($set_page+1).$ssp."' class='page-btn'>»</a>"; ?>
+        <div id="users" class="accordion-content" style="display: <?php echo ($open_tab == 'users') ? 'block' : 'none'; ?>;">
+            <form method="GET" class="search-form">
+                <input type="hidden" name="open" value="users">
+                <input type="text" name="search" placeholder="ID veya Kullanıcı Adı..." value="<?php echo htmlspecialchars($search_term); ?>">
+                <button type="submit">🔍 Ara</button>
+                <?php if(!empty($search_term)) echo "<a href='admin.php?open=users' class='btn-clear'>Temizle</a>"; ?>
+            </form>
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead><tr><th>ID</th><th>Kullanıcı Adı</th><th>Email</th><th>Yetki</th><th>Kayıt</th><th>İşlem</th></tr></thead>
+                    <tbody>
+                        <?php if($users->num_rows > 0): ?>
+                            <?php while($u = $users->fetch_assoc()): ?>
+                            <tr>
+                                <td>#<?php echo $u['user_id']; ?></td>
+                                <td><b><?php echo htmlspecialchars($u['username']); ?></b></td>
+                                <td><?php echo htmlspecialchars($u['email']); ?></td>
+                                <td><?php echo $u['is_admin'] ? '<span class="admin-badge">ADMIN</span>' : 'Üye'; ?></td>
+                                <td><?php echo date("d.m.Y", strtotime($u['created_at'])); ?></td>
+                                <td>
+                                    <?php if($u['user_id'] != $my_id): ?>
+                                        <a href="admin.php?delete_user=<?php echo $u['user_id']; ?>" class="btn-del" onclick="return confirm('Kullanıcıyı ve setlerini sil?')">Sil</a>
+                                    <?php else: ?><span>(Sen)</span><?php endif; ?>
+                                </td>
+                            </tr>
+                            <?php endwhile; ?>
+                        <?php else: ?><tr><td colspan="6" style="text-align:center;">Sonuç yok.</td></tr><?php endif; ?>
+                    </tbody>
+                </table>
             </div>
-        <?php endif; ?>
+            <?php if($total_pages > 1): ?>
+                <div class="pagination">
+                    <?php $sp = !empty($search_term) ? "&search=".urlencode($search_term) : ""; ?>
+                    <?php if($page > 1) echo "<a href='admin.php?page=".($page-1).$sp."&open=users' class='page-btn'>«</a>"; ?>
+                    <span class="page-info"><?php echo $page." / ".$total_pages; ?></span>
+                    <?php if($page < $total_pages) echo "<a href='admin.php?page=".($page+1).$sp."&open=users' class='page-btn'>»</a>"; ?>
+                </div>
+            <?php endif; ?>
+        </div>
     </div>
 
 </div>
+
+<script>
+    function toggleSection(contentId, iconId) {
+        var content = document.getElementById(contentId);
+        var icon = document.getElementById(iconId);
+        
+        if (content.style.display === "none" || content.style.display === "") {
+            content.style.display = "block";
+            icon.innerText = "▲";
+        } else {
+            content.style.display = "none";
+            icon.innerText = "▼";
+        }
+    }
+</script>
 
 </body>
 </html>
