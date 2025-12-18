@@ -253,12 +253,8 @@ while($row = $result_cards->fetch_assoc()) {
             padding: 40px; box-sizing: border-box; border-radius: 24px; box-shadow: 0 15px 35px rgba(0,0,0,0.1); 
         }
         .flashcard-front { background: #fff; color: #2d3436; border: 1px solid rgba(0,0,0,0.05); }
-        .flashcard-back { background: #2d3436; color: #fff; transform: rotateY(180deg); }
-        
-        .bg-default { background: #2d3436; }
-        .bg-blue { background: linear-gradient(135deg, #0984e3, #74b9ff); }
-        .bg-red { background: linear-gradient(135deg, #d63031, #ff7675); }
-        .bg-green { background: linear-gradient(135deg, #00b894, #55efc4); }
+        /* Arka plan rengini kaldırdık, sadece transform ve yazı rengi kaldı */
+        .flashcard-back { color: #fff; transform: rotateY(180deg); }
 
         .controls { display: flex; justify-content: center; align-items: center; gap: 20px; margin-bottom: 50px; }
         .nav-btn {
