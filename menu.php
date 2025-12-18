@@ -126,7 +126,7 @@ if (session_status() === PHP_SESSION_NONE) {
     
     <div class="nav-left">
         <a href="index.php" class="brand-logo">
-            <i class="fa-solid fa-layer-group"></i> FlashCard
+            <i class="fa-solid fa-layer-group"></i> Mini Sınavım
         </a>
         <a href="sets.php" class="nav-link"><i class="fa-solid fa-clone"></i> Tüm Setler</a>
         <a href="oneri.php" class="nav-link"><i class="fa-regular fa-paper-plane"></i> Öneri</a>
