@@ -57,66 +57,104 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     } elseif (empty($set_category)) {
         $error = "Lütfen bir kategori seçiniz!";
     } else {
-        // En az 2 kart kontrolü
-        $validCardCount = 0;
+        
+        // --- YENİ EKLENEN KISIM: TEKRAR EDEN KELİME KONTROLÜ ---
+        
+        // 1. Önce boş olmayan terimleri bir diziye toplayalım (küçük harfe çevirerek)
+        $terms_to_check = [];
         if (isset($_POST["term"])) {
-            foreach ($_POST["term"] as $key => $term) {
-                if (trim($term) !== "" && trim($_POST["defination"][$key]) !== "") {
-                    $validCardCount++;
+            foreach ($_POST["term"] as $term) {
+                $clean_term = trim($term);
+                if (!empty($clean_term)) {
+                    // mb_strtolower Türkçe karakter sorununu çözer
+                    $terms_to_check[] = mb_strtolower($clean_term, 'UTF-8'); 
                 }
             }
         }
 
-        if ($validCardCount < 2) {
-            $error = "En az 2 dolu kart olmalıdır!";
-        } else {
-            // A) SET BİLGİLERİNİ GÜNCELLE
-            $stmt_update = $conn->prepare("UPDATE sets SET title=?, description=?, category_id=?, theme_id=? WHERE set_id=? AND user_id=?");
-            $stmt_update->bind_param("ssiiii", $set_title, $set_desc, $set_category, $set_theme_id, $set_id, $user_id);
-            
-            if ($stmt_update->execute()) {
-                
-                // B) KART İŞLEMLERİ
-                $submitted_card_ids = [];
-                
-                if (isset($_POST["term"])) {
-                    $stmt_insert_card = $conn->prepare("INSERT INTO cards (set_id, term, defination) VALUES (?, ?, ?)");
-                    $stmt_update_card = $conn->prepare("UPDATE cards SET term=?, defination=? WHERE card_id=? AND set_id=?");
+        // 2. Dizi içindeki eleman sayılarını sayalım
+        $term_counts = array_count_values($terms_to_check);
+        
+        // 3. Tekrar eden var mı kontrol edelim
+        $has_duplicate = false;
+        $duplicate_word = "";
+        
+        foreach ($term_counts as $word => $count) {
+            if ($count > 1) {
+                $has_duplicate = true;
+                $duplicate_word = $word; // İlk bulunan tekrarı al
+                break;
+            }
+        }
 
-                    foreach ($_POST["term"] as $key => $term) {
-                        $def = $_POST["defination"][$key];
-                        $card_id = isset($_POST["card_id"][$key]) ? $_POST["card_id"][$key] : null;
+        if ($has_duplicate) {
+            // Hata mesajını ayarla ve işlemi durdur
+            $error = "Hata: '" . strtoupper($duplicate_word) . "' kelimesini birden fazla kez kullandınız. Lütfen her kart için farklı bir terim giriniz.";
+        } 
+        else {
+            // --- EĞER TEKRAR YOKSA ESKİ KOD DEVAM EDİYOR ---
 
-                        if (trim($term) !== "" && trim($def) !== "") {
-                            if (!empty($card_id)) {
-                                // GÜNCELLE
-                                $stmt_update_card->bind_param("ssii", $term, $def, $card_id, $set_id);
-                                $stmt_update_card->execute();
-                                $submitted_card_ids[] = $card_id; 
-                            } else {
-                                // EKLE
-                                $stmt_insert_card->bind_param("iss", $set_id, $term, $def);
-                                $stmt_insert_card->execute();
+            // En az 2 kart kontrolü
+            $validCardCount = 0;
+            if (isset($_POST["term"])) {
+                foreach ($_POST["term"] as $key => $term) {
+                    if (trim($term) !== "" && trim($_POST["defination"][$key]) !== "") {
+                        $validCardCount++;
+                    }
+                }
+            }
+
+            if ($validCardCount < 2) {
+                $error = "En az 2 dolu kart olmalıdır!";
+            } else {
+                // A) SET BİLGİLERİNİ GÜNCELLE
+                $stmt_update = $conn->prepare("UPDATE sets SET title=?, description=?, category_id=?, theme_id=? WHERE set_id=? AND user_id=?");
+                $stmt_update->bind_param("ssiiii", $set_title, $set_desc, $set_category, $set_theme_id, $set_id, $user_id);
+                
+                if ($stmt_update->execute()) {
+                    
+                    // B) KART İŞLEMLERİ
+                    $submitted_card_ids = [];
+                    
+                    if (isset($_POST["term"])) {
+                        $stmt_insert_card = $conn->prepare("INSERT INTO cards (set_id, term, defination) VALUES (?, ?, ?)");
+                        $stmt_update_card = $conn->prepare("UPDATE cards SET term=?, defination=? WHERE card_id=? AND set_id=?");
+
+                        foreach ($_POST["term"] as $key => $term) {
+                            $def = $_POST["defination"][$key];
+                            $card_id = isset($_POST["card_id"][$key]) ? $_POST["card_id"][$key] : null;
+
+                            if (trim($term) !== "" && trim($def) !== "") {
+                                if (!empty($card_id)) {
+                                    // GÜNCELLE
+                                    $stmt_update_card->bind_param("ssii", $term, $def, $card_id, $set_id);
+                                    $stmt_update_card->execute();
+                                    $submitted_card_ids[] = $card_id; 
+                                } else {
+                                    // EKLE
+                                    $stmt_insert_card->bind_param("iss", $set_id, $term, $def);
+                                    $stmt_insert_card->execute();
+                                }
                             }
                         }
                     }
+
+                    // C) SİLİNEN KARTLARI KALDIR
+                    $db_card_ids = [];
+                    foreach ($cards as $c) { $db_card_ids[] = $c['card_id']; }
+                    $ids_to_delete = array_diff($db_card_ids, $submitted_card_ids);
+
+                    if (!empty($ids_to_delete)) {
+                        $ids_string = implode(",", $ids_to_delete);
+                        $conn->query("DELETE FROM cards WHERE card_id IN ($ids_string) AND set_id = $set_id");
+                    }
+
+                    $success = "Set başarıyla güncellendi! Yönlendiriliyorsunuz...";
+                } else {
+                    $error = "Veritabanı güncelleme hatası: " . $conn->error;
                 }
-
-                // C) SİLİNEN KARTLARI KALDIR
-                $db_card_ids = [];
-                foreach ($cards as $c) { $db_card_ids[] = $c['card_id']; }
-                $ids_to_delete = array_diff($db_card_ids, $submitted_card_ids);
-
-                if (!empty($ids_to_delete)) {
-                    $ids_string = implode(",", $ids_to_delete);
-                    $conn->query("DELETE FROM cards WHERE card_id IN ($ids_string) AND set_id = $set_id");
-                }
-
-                $success = "Set başarıyla güncellendi! Yönlendiriliyorsunuz...";
-            } else {
-                $error = "Veritabanı güncelleme hatası: " . $conn->error;
             }
-        }
+        } // Tekrar kontrolü else bitişi
     }
 }
 ?>
