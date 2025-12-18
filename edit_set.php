@@ -267,7 +267,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     .custom-select ul.options li:hover { background: #f0f0f0; }
 
     /* Butonlar */
-    .delete-btn { background: #ff4d4d; border: none; padding: 8px 12px; border-radius: 8px; color: white; cursor: pointer; margin-top: 10px; float: right; font-size: 13px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    .delete-btn { background: #ff4d4d; border: none; padding: 8px 12px; border-radius: 8px; color: white; cursor: pointer; margin-top: 10px; float: bottom; font-size: 13px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
     
     .add-btn { 
         width: 100%; padding: 12px; margin-top: 10px; border-radius: 8px; border: none; cursor: pointer; font-size: 16px; 
